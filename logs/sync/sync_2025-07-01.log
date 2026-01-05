@@ -1,0 +1,338 @@
+2025/07/01 11:38:43 [START] Starting data synchronization at 2025-07-01T11:38:43+07:00
+2025/07/01 11:38:47 [SOURCE] osm_Bali:
+2025/07/01 11:38:47 [SOURCE] - POIs fetched: 3943
+2025/07/01 11:38:47 [SOURCE] - POIs after enrichment: 3943
+2025/07/01 11:38:47 [SOURCE] - POIs passing quality: 0
+2025/07/01 11:38:47 [SOURCE] - Processing time: 3.936758292s
+2025/07/01 11:38:48 [SOURCE] osm_Yogyakarta:
+2025/07/01 11:38:48 [SOURCE] - POIs fetched: 2118
+2025/07/01 11:38:48 [SOURCE] - POIs after enrichment: 2118
+2025/07/01 11:38:48 [SOURCE] - POIs passing quality: 0
+2025/07/01 11:38:48 [SOURCE] - Processing time: 4.83652225s
+2025/07/01 11:38:49 [SOURCE] osm_Jakarta:
+2025/07/01 11:38:49 [SOURCE] - POIs fetched: 2861
+2025/07/01 11:38:49 [SOURCE] - POIs after enrichment: 2861
+2025/07/01 11:38:49 [SOURCE] - POIs passing quality: 0
+2025/07/01 11:38:49 [SOURCE] - Processing time: 6.472362666s
+2025/07/01 11:39:00 [SOURCE] wikidata:
+2025/07/01 11:39:00 [SOURCE] - POIs fetched: 1499
+2025/07/01 11:39:00 [SOURCE] - POIs after enrichment: 1499
+2025/07/01 11:39:00 [SOURCE] - POIs passing quality: 0
+2025/07/01 11:39:00 [SOURCE] - Processing time: 16.921593458s
+2025/07/01 11:39:53 [SOURCE] indonesia_gov:
+2025/07/01 11:39:53 [SOURCE] - POIs fetched: 0
+2025/07/01 11:39:53 [SOURCE] - POIs after enrichment: 0
+2025/07/01 11:39:53 [SOURCE] - POIs passing quality: 0
+2025/07/01 11:39:53 [SOURCE] - Processing time: 1m9.921432125s
+2025/07/01 11:40:21 [END] Sync completed in 1m38.263808625s
+2025/07/01 11:40:21 [END] Total POIs processed: 10421
+2025/07/01 11:40:21 [END] POIs passing quality checks: 10117
+2025/07/01 11:40:21 [END] Quality ratio: 97.08%
+2025/07/01 11:40:21 [STATS] Sync Statistics:
+2025/07/01 11:40:21 [STATS] error_count: 0
+2025/07/01 11:40:21 [STATS] duration: 1m38.263808625s
+2025/07/01 11:40:21 [STATS] last_sync: 2025-07-01T11:40:21+07:00
+2025/07/01 11:40:21 [STATS] total_pois: 10421
+2025/07/01 11:40:21 [STATS] enriched_pois: 10117
+2025/07/01 11:40:21 [STATS] quality_pois: 10117
+2025/07/01 12:14:54 [START] Starting data synchronization at 2025-07-01T12:14:54+07:00
+2025/07/01 12:14:57 [SOURCE] osm_Bali:
+2025/07/01 12:14:57 [SOURCE] - POIs fetched: 3943
+2025/07/01 12:14:57 [SOURCE] - POIs after enrichment: 3943
+2025/07/01 12:14:57 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:14:57 [SOURCE] - Processing time: 3.50935625s
+2025/07/01 12:14:58 [SOURCE] osm_Yogyakarta:
+2025/07/01 12:14:58 [SOURCE] - POIs fetched: 2118
+2025/07/01 12:14:58 [SOURCE] - POIs after enrichment: 2118
+2025/07/01 12:14:58 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:14:58 [SOURCE] - Processing time: 3.924874208s
+2025/07/01 12:15:00 [SOURCE] osm_Jakarta:
+2025/07/01 12:15:00 [SOURCE] - POIs fetched: 2861
+2025/07/01 12:15:00 [SOURCE] - POIs after enrichment: 2861
+2025/07/01 12:15:00 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:15:00 [SOURCE] - Processing time: 6.272608166s
+2025/07/01 12:15:06 [SOURCE] wikidata:
+2025/07/01 12:15:06 [SOURCE] - POIs fetched: 1499
+2025/07/01 12:15:06 [SOURCE] - POIs after enrichment: 1499
+2025/07/01 12:15:06 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:15:06 [SOURCE] - Processing time: 12.392350792s
+2025/07/01 12:16:04 [SOURCE] indonesia_gov:
+2025/07/01 12:16:04 [SOURCE] - POIs fetched: 0
+2025/07/01 12:16:04 [SOURCE] - POIs after enrichment: 0
+2025/07/01 12:16:04 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:16:04 [SOURCE] - Processing time: 1m9.908088s
+2025/07/01 12:16:43 [END] Sync completed in 1m49.138407375s
+2025/07/01 12:16:43 [END] Total POIs processed: 10421
+2025/07/01 12:16:43 [END] POIs passing quality checks: 10113
+2025/07/01 12:16:43 [END] Quality ratio: 97.04%
+2025/07/01 12:16:43 [STATS] Sync Statistics:
+2025/07/01 12:16:43 [STATS] error_count: 0
+2025/07/01 12:16:43 [STATS] duration: 1m49.138407375s
+2025/07/01 12:16:43 [STATS] last_sync: 2025-07-01T12:16:43+07:00
+2025/07/01 12:16:43 [STATS] total_pois: 10421
+2025/07/01 12:16:43 [STATS] enriched_pois: 10113
+2025/07/01 12:16:43 [STATS] quality_pois: 10113
+2025/07/01 12:18:18 [START] Starting data synchronization at 2025-07-01T12:18:18+07:00
+2025/07/01 12:18:18 [SOURCE] wikidata:
+2025/07/01 12:18:18 [SOURCE] - POIs fetched: 1499
+2025/07/01 12:18:18 [SOURCE] - POIs after enrichment: 1499
+2025/07/01 12:18:18 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:18:18 [SOURCE] - Processing time: 152.402209ms
+2025/07/01 12:18:21 [SOURCE] osm_Bali:
+2025/07/01 12:18:21 [SOURCE] - POIs fetched: 3943
+2025/07/01 12:18:21 [SOURCE] - POIs after enrichment: 3943
+2025/07/01 12:18:21 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:18:21 [SOURCE] - Processing time: 3.40954925s
+2025/07/01 12:18:22 [SOURCE] osm_Yogyakarta:
+2025/07/01 12:18:22 [SOURCE] - POIs fetched: 2118
+2025/07/01 12:18:22 [SOURCE] - POIs after enrichment: 2118
+2025/07/01 12:18:22 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:18:22 [SOURCE] - Processing time: 3.874407083s
+2025/07/01 12:18:23 [SOURCE] osm_Jakarta:
+2025/07/01 12:18:23 [SOURCE] - POIs fetched: 2861
+2025/07/01 12:18:23 [SOURCE] - POIs after enrichment: 2861
+2025/07/01 12:18:23 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:18:23 [SOURCE] - Processing time: 5.530090167s
+2025/07/01 12:19:28 [SOURCE] indonesia_gov:
+2025/07/01 12:19:28 [SOURCE] - POIs fetched: 0
+2025/07/01 12:19:28 [SOURCE] - POIs after enrichment: 0
+2025/07/01 12:19:28 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:19:28 [SOURCE] - Processing time: 1m9.996493334s
+2025/07/01 12:19:54 [END] Sync completed in 1m36.182101084s
+2025/07/01 12:19:54 [END] Total POIs processed: 10421
+2025/07/01 12:19:54 [END] POIs passing quality checks: 10113
+2025/07/01 12:19:54 [END] Quality ratio: 97.04%
+2025/07/01 12:19:54 [STATS] Sync Statistics:
+2025/07/01 12:19:54 [STATS] total_pois: 10421
+2025/07/01 12:19:54 [STATS] enriched_pois: 10113
+2025/07/01 12:19:54 [STATS] quality_pois: 10113
+2025/07/01 12:19:54 [STATS] error_count: 0
+2025/07/01 12:19:54 [STATS] duration: 1m36.182101084s
+2025/07/01 12:19:54 [STATS] last_sync: 2025-07-01T12:19:54+07:00
+2025/07/01 12:20:01 [START] Starting data synchronization at 2025-07-01T12:20:01+07:00
+2025/07/01 12:20:04 [START] Starting data synchronization at 2025-07-01T12:20:04+07:00
+2025/07/01 12:20:07 [SOURCE] osm_Bali:
+2025/07/01 12:20:07 [SOURCE] - POIs fetched: 3943
+2025/07/01 12:20:07 [SOURCE] - POIs after enrichment: 3943
+2025/07/01 12:20:07 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:20:07 [SOURCE] - Processing time: 3.861938959s
+2025/07/01 12:20:09 [SOURCE] osm_Yogyakarta:
+2025/07/01 12:20:09 [SOURCE] - POIs fetched: 2118
+2025/07/01 12:20:09 [SOURCE] - POIs after enrichment: 2118
+2025/07/01 12:20:09 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:20:09 [SOURCE] - Processing time: 5.410245625s
+2025/07/01 12:20:11 [SOURCE] osm_Jakarta:
+2025/07/01 12:20:11 [SOURCE] - POIs fetched: 2861
+2025/07/01 12:20:11 [SOURCE] - POIs after enrichment: 2861
+2025/07/01 12:20:11 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:20:11 [SOURCE] - Processing time: 7.876465458s
+2025/07/01 12:20:27 [SOURCE] wikidata:
+2025/07/01 12:20:27 [SOURCE] - POIs fetched: 1499
+2025/07/01 12:20:27 [SOURCE] - POIs after enrichment: 1499
+2025/07/01 12:20:27 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:20:27 [SOURCE] - Processing time: 23.472722792s
+2025/07/01 12:21:13 [SOURCE] indonesia_gov:
+2025/07/01 12:21:13 [SOURCE] - POIs fetched: 0
+2025/07/01 12:21:13 [SOURCE] - POIs after enrichment: 0
+2025/07/01 12:21:13 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:21:13 [SOURCE] - Processing time: 1m9.878817s
+2025/07/01 12:21:24 [START] Starting data synchronization at 2025-07-01T12:21:24+07:00
+2025/07/01 12:21:24 [SOURCE] wikidata:
+2025/07/01 12:21:24 [SOURCE] - POIs fetched: 1499
+2025/07/01 12:21:24 [SOURCE] - POIs after enrichment: 1499
+2025/07/01 12:21:24 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:21:24 [SOURCE] - Processing time: 135.841292ms
+2025/07/01 12:21:28 [SOURCE] osm_Bali:
+2025/07/01 12:21:28 [SOURCE] - POIs fetched: 3943
+2025/07/01 12:21:28 [SOURCE] - POIs after enrichment: 3943
+2025/07/01 12:21:28 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:21:28 [SOURCE] - Processing time: 4.252735458s
+2025/07/01 12:21:29 [SOURCE] osm_Yogyakarta:
+2025/07/01 12:21:29 [SOURCE] - POIs fetched: 2118
+2025/07/01 12:21:29 [SOURCE] - POIs after enrichment: 2118
+2025/07/01 12:21:29 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:21:29 [SOURCE] - Processing time: 4.550645166s
+2025/07/01 12:21:30 [SOURCE] osm_Jakarta:
+2025/07/01 12:21:30 [SOURCE] - POIs fetched: 2861
+2025/07/01 12:21:30 [SOURCE] - POIs after enrichment: 2861
+2025/07/01 12:21:30 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:21:30 [SOURCE] - Processing time: 6.13182425s
+2025/07/01 12:21:53 [START] Starting data synchronization at 2025-07-01T12:21:53+07:00
+2025/07/01 12:21:53 [SOURCE] wikidata:
+2025/07/01 12:21:53 [SOURCE] - POIs fetched: 1499
+2025/07/01 12:21:53 [SOURCE] - POIs after enrichment: 1499
+2025/07/01 12:21:53 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:21:53 [SOURCE] - Processing time: 144.187458ms
+2025/07/01 12:21:57 [SOURCE] osm_Bali:
+2025/07/01 12:21:57 [SOURCE] - POIs fetched: 3943
+2025/07/01 12:21:57 [SOURCE] - POIs after enrichment: 3943
+2025/07/01 12:21:57 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:21:57 [SOURCE] - Processing time: 3.654219708s
+2025/07/01 12:21:57 [SOURCE] osm_Yogyakarta:
+2025/07/01 12:21:57 [SOURCE] - POIs fetched: 2118
+2025/07/01 12:21:57 [SOURCE] - POIs after enrichment: 2118
+2025/07/01 12:21:57 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:21:57 [SOURCE] - Processing time: 4.05623925s
+2025/07/01 12:21:59 [SOURCE] osm_Jakarta:
+2025/07/01 12:21:59 [SOURCE] - POIs fetched: 2861
+2025/07/01 12:21:59 [SOURCE] - POIs after enrichment: 2861
+2025/07/01 12:21:59 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:21:59 [SOURCE] - Processing time: 5.677621458s
+2025/07/01 12:22:04 [START] Starting data synchronization at 2025-07-01T12:22:04+07:00
+2025/07/01 12:22:04 [SOURCE] wikidata:
+2025/07/01 12:22:04 [SOURCE] - POIs fetched: 1499
+2025/07/01 12:22:04 [SOURCE] - POIs after enrichment: 1499
+2025/07/01 12:22:04 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:22:04 [SOURCE] - Processing time: 140.9465ms
+2025/07/01 12:22:08 [SOURCE] osm_Bali:
+2025/07/01 12:22:08 [SOURCE] - POIs fetched: 3943
+2025/07/01 12:22:08 [SOURCE] - POIs after enrichment: 3943
+2025/07/01 12:22:08 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:22:08 [SOURCE] - Processing time: 4.096366041s
+2025/07/01 12:22:08 [SOURCE] osm_Yogyakarta:
+2025/07/01 12:22:08 [SOURCE] - POIs fetched: 2118
+2025/07/01 12:22:08 [SOURCE] - POIs after enrichment: 2118
+2025/07/01 12:22:08 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:22:08 [SOURCE] - Processing time: 4.448516666s
+2025/07/01 12:22:11 [SOURCE] osm_Jakarta:
+2025/07/01 12:22:11 [SOURCE] - POIs fetched: 2861
+2025/07/01 12:22:11 [SOURCE] - POIs after enrichment: 2861
+2025/07/01 12:22:11 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:22:11 [SOURCE] - Processing time: 7.246682791s
+2025/07/01 12:23:14 [SOURCE] indonesia_gov:
+2025/07/01 12:23:14 [SOURCE] - POIs fetched: 0
+2025/07/01 12:23:14 [SOURCE] - POIs after enrichment: 0
+2025/07/01 12:23:14 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:23:14 [SOURCE] - Processing time: 1m10.004998541s
+2025/07/01 12:23:42 [END] Sync completed in 1m38.506146625s
+2025/07/01 12:23:42 [END] Total POIs processed: 10421
+2025/07/01 12:23:42 [END] POIs passing quality checks: 10118
+2025/07/01 12:23:42 [END] Quality ratio: 97.09%
+2025/07/01 12:23:42 [STATS] Sync Statistics:
+2025/07/01 12:23:42 [STATS] quality_pois: 10118
+2025/07/01 12:23:42 [STATS] error_count: 0
+2025/07/01 12:23:42 [STATS] duration: 1m38.506146625s
+2025/07/01 12:23:42 [STATS] last_sync: 2025-07-01T12:23:42+07:00
+2025/07/01 12:23:42 [STATS] total_pois: 10421
+2025/07/01 12:23:42 [STATS] enriched_pois: 10118
+2025/07/01 12:24:20 [START] Starting data synchronization at 2025-07-01T12:24:20+07:00
+2025/07/01 12:24:20 [SOURCE] wikidata:
+2025/07/01 12:24:20 [SOURCE] - POIs fetched: 1499
+2025/07/01 12:24:20 [SOURCE] - POIs after enrichment: 1499
+2025/07/01 12:24:20 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:24:20 [SOURCE] - Processing time: 139.461208ms
+2025/07/01 12:24:24 [SOURCE] osm_Bali:
+2025/07/01 12:24:24 [SOURCE] - POIs fetched: 3943
+2025/07/01 12:24:24 [SOURCE] - POIs after enrichment: 3943
+2025/07/01 12:24:24 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:24:24 [SOURCE] - Processing time: 3.67991125s
+2025/07/01 12:24:25 [SOURCE] osm_Yogyakarta:
+2025/07/01 12:24:25 [SOURCE] - POIs fetched: 2118
+2025/07/01 12:24:25 [SOURCE] - POIs after enrichment: 2118
+2025/07/01 12:24:25 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:24:25 [SOURCE] - Processing time: 4.549168708s
+2025/07/01 12:24:26 [SOURCE] osm_Jakarta:
+2025/07/01 12:24:26 [SOURCE] - POIs fetched: 2861
+2025/07/01 12:24:26 [SOURCE] - POIs after enrichment: 2861
+2025/07/01 12:24:26 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:24:26 [SOURCE] - Processing time: 6.159446083s
+2025/07/01 12:24:28 [START] Starting data synchronization at 2025-07-01T12:24:28+07:00
+2025/07/01 12:24:28 [SOURCE] wikidata:
+2025/07/01 12:24:28 [SOURCE] - POIs fetched: 1499
+2025/07/01 12:24:28 [SOURCE] - POIs after enrichment: 1499
+2025/07/01 12:24:28 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:24:28 [SOURCE] - Processing time: 126.99275ms
+2025/07/01 12:24:31 [SOURCE] osm_Bali:
+2025/07/01 12:24:31 [SOURCE] - POIs fetched: 3943
+2025/07/01 12:24:31 [SOURCE] - POIs after enrichment: 3943
+2025/07/01 12:24:31 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:24:31 [SOURCE] - Processing time: 3.328238083s
+2025/07/01 12:24:31 [SOURCE] osm_Yogyakarta:
+2025/07/01 12:24:31 [SOURCE] - POIs fetched: 2118
+2025/07/01 12:24:31 [SOURCE] - POIs after enrichment: 2118
+2025/07/01 12:24:31 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:24:31 [SOURCE] - Processing time: 3.577518208s
+2025/07/01 12:24:33 [SOURCE] osm_Jakarta:
+2025/07/01 12:24:33 [SOURCE] - POIs fetched: 2861
+2025/07/01 12:24:33 [SOURCE] - POIs after enrichment: 2861
+2025/07/01 12:24:33 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:24:33 [SOURCE] - Processing time: 5.718771417s
+2025/07/01 12:25:38 [SOURCE] indonesia_gov:
+2025/07/01 12:25:38 [SOURCE] - POIs fetched: 0
+2025/07/01 12:25:38 [SOURCE] - POIs after enrichment: 0
+2025/07/01 12:25:38 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:25:38 [SOURCE] - Processing time: 1m9.966645542s
+2025/07/01 12:25:55 [START] Starting data synchronization at 2025-07-01T12:25:55+07:00
+2025/07/01 12:25:59 [SOURCE] osm_Bali:
+2025/07/01 12:25:59 [SOURCE] - POIs fetched: 3943
+2025/07/01 12:25:59 [SOURCE] - POIs after enrichment: 3943
+2025/07/01 12:25:59 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:25:59 [SOURCE] - Processing time: 3.759594333s
+2025/07/01 12:26:02 [SOURCE] osm_Yogyakarta:
+2025/07/01 12:26:02 [SOURCE] - POIs fetched: 2118
+2025/07/01 12:26:02 [SOURCE] - POIs after enrichment: 2118
+2025/07/01 12:26:02 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:26:02 [SOURCE] - Processing time: 6.569198166s
+2025/07/01 12:26:02 [SOURCE] osm_Jakarta:
+2025/07/01 12:26:02 [SOURCE] - POIs fetched: 2861
+2025/07/01 12:26:02 [SOURCE] - POIs after enrichment: 2861
+2025/07/01 12:26:02 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:26:02 [SOURCE] - Processing time: 7.30540225s
+2025/07/01 12:26:12 [SOURCE] wikidata:
+2025/07/01 12:26:12 [SOURCE] - POIs fetched: 1499
+2025/07/01 12:26:12 [SOURCE] - POIs after enrichment: 1499
+2025/07/01 12:26:12 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:26:12 [SOURCE] - Processing time: 16.890019375s
+2025/07/01 12:27:05 [SOURCE] indonesia_gov:
+2025/07/01 12:27:05 [SOURCE] - POIs fetched: 0
+2025/07/01 12:27:05 [SOURCE] - POIs after enrichment: 0
+2025/07/01 12:27:05 [SOURCE] - POIs passing quality: 0
+2025/07/01 12:27:05 [SOURCE] - Processing time: 1m9.95627475s
+2025/07/01 12:27:27 [END] Sync completed in 1m31.855278958s
+2025/07/01 12:27:27 [END] Total POIs processed: 10421
+2025/07/01 12:27:27 [END] POIs passing quality checks: 10129
+2025/07/01 12:27:27 [END] Quality ratio: 97.20%
+2025/07/01 12:27:27 [STATS] Sync Statistics:
+2025/07/01 12:27:27 [STATS] total_pois: 10421
+2025/07/01 12:27:27 [STATS] enriched_pois: 10129
+2025/07/01 12:27:27 [STATS] quality_pois: 10129
+2025/07/01 12:27:27 [STATS] error_count: 0
+2025/07/01 12:27:27 [STATS] duration: 1m31.855278958s
+2025/07/01 12:27:27 [STATS] last_sync: 2025-07-01T12:27:27+07:00
+2025/07/01 22:39:25 [START] Starting data synchronization at 2025-07-01T22:39:25+07:00
+2025/07/01 22:39:30 [SOURCE] osm_Bali:
+2025/07/01 22:39:30 [SOURCE] - POIs fetched: 3943
+2025/07/01 22:39:30 [SOURCE] - POIs after enrichment: 3943
+2025/07/01 22:39:30 [SOURCE] - POIs passing quality: 0
+2025/07/01 22:39:30 [SOURCE] - Processing time: 4.85662675s
+2025/07/01 22:39:31 [SOURCE] osm_Yogyakarta:
+2025/07/01 22:39:31 [SOURCE] - POIs fetched: 2118
+2025/07/01 22:39:31 [SOURCE] - POIs after enrichment: 2118
+2025/07/01 22:39:31 [SOURCE] - POIs passing quality: 0
+2025/07/01 22:39:31 [SOURCE] - Processing time: 5.576739708s
+2025/07/01 22:39:33 [SOURCE] osm_Jakarta:
+2025/07/01 22:39:33 [SOURCE] - POIs fetched: 2861
+2025/07/01 22:39:33 [SOURCE] - POIs after enrichment: 2861
+2025/07/01 22:39:33 [SOURCE] - POIs passing quality: 0
+2025/07/01 22:39:33 [SOURCE] - Processing time: 7.907464292s
+2025/07/01 22:39:40 [SOURCE] wikidata:
+2025/07/01 22:39:40 [SOURCE] - POIs fetched: 1499
+2025/07/01 22:39:40 [SOURCE] - POIs after enrichment: 1499
+2025/07/01 22:39:40 [SOURCE] - POIs passing quality: 0
+2025/07/01 22:39:40 [SOURCE] - Processing time: 14.328176875s
+2025/07/01 22:40:35 [SOURCE] indonesia_gov:
+2025/07/01 22:40:35 [SOURCE] - POIs fetched: 0
+2025/07/01 22:40:35 [SOURCE] - POIs after enrichment: 0
+2025/07/01 22:40:35 [SOURCE] - POIs passing quality: 0
+2025/07/01 22:40:35 [SOURCE] - Processing time: 1m10.025365084s
+2025/07/01 22:40:55 [END] Sync completed in 1m30.075039792s
+2025/07/01 22:40:55 [END] Total POIs processed: 10421
+2025/07/01 22:40:55 [END] POIs passing quality checks: 10109
+2025/07/01 22:40:55 [END] Quality ratio: 97.01%
+2025/07/01 22:40:55 [STATS] Sync Statistics:
+2025/07/01 22:40:55 [STATS] quality_pois: 10109
+2025/07/01 22:40:55 [STATS] error_count: 0
+2025/07/01 22:40:55 [STATS] duration: 1m30.075039792s
+2025/07/01 22:40:55 [STATS] last_sync: 2025-07-01T22:40:55+07:00
+2025/07/01 22:40:55 [STATS] total_pois: 10421
+2025/07/01 22:40:55 [STATS] enriched_pois: 10109
