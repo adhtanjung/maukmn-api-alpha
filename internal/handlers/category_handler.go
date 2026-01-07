@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"maukemana-backend/internal/database"
+	"maukemana-backend/internal/utils"
 )
 
 // CategoryHandler handles category-related HTTP requests
@@ -39,11 +40,11 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 	var categories []Category
 	err := h.db.SelectContext(ctx, &categories, query)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SendInternalError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": categories})
+	utils.SendSuccess(c, "Categories retrieved", gin.H{"data": categories})
 }
 
 // VocabularyHandler handles vocabulary-related HTTP requests

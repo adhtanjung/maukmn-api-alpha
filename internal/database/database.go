@@ -7,6 +7,9 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"github.com/uptrace/opentelemetry-go-extra/otelsql"
+	"github.com/uptrace/opentelemetry-go-extra/otelsqlx"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
 // DB represents the PostgreSQL database connection
@@ -16,7 +19,9 @@ type DB struct {
 
 // New creates a new PostgreSQL database connection
 func New(databaseURL string) (*DB, error) {
-	db, err := sqlx.Connect("postgres", databaseURL)
+	db, err := otelsqlx.Connect("postgres", databaseURL,
+		otelsql.WithAttributes(semconv.DBSystemPostgreSQL),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}

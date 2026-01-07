@@ -38,9 +38,7 @@ CREATE INDEX IF NOT EXISTS idx_poi_has_ac ON points_of_interest(has_ac);
 CREATE INDEX IF NOT EXISTS idx_poi_vibes ON points_of_interest USING GIN (vibes);
 CREATE INDEX IF NOT EXISTS idx_poi_seating_options ON points_of_interest USING GIN (seating_options);
 CREATE INDEX IF NOT EXISTS idx_poi_dietary_options ON points_of_interest USING GIN (dietary_options);
-
 -- +goose StatementEnd
-
 -- +goose Down
 -- +goose StatementBegin
 -- Remove extended POI fields

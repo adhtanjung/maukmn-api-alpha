@@ -13,6 +13,8 @@ import (
 	"github.com/joho/godotenv"
 
 	"maukemana-backend/internal/database"
+	"maukemana-backend/internal/logger"
+	"maukemana-backend/internal/observability"
 	"maukemana-backend/internal/router"
 )
 
@@ -29,6 +31,22 @@ func main() {
 	}
 	port := getEnv("PORT", "3001")
 	env := getEnv("NODE_ENV", "development")
+
+	// Initialize logger
+	logger.Init("maukemana-backend", env, logger.ParseLevelFromEnv())
+
+	// Initialize OpenTelemetry
+	shutdownOTel, err := observability.InitOTel(context.Background(), "maukemana-api")
+	if err != nil {
+		log.Printf("Warning: Failed to initialize OpenTelemetry: %v", err)
+	} else {
+		defer func() {
+			if err := shutdownOTel(context.Background()); err != nil {
+				log.Printf("Error shutting down OpenTelemetry: %v", err)
+			}
+		}()
+		log.Println("✓ OpenTelemetry initialized")
+	}
 
 	// Set Gin mode
 	if env == "production" {

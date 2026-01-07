@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"maukemana-backend/internal/storage"
+	"maukemana-backend/internal/utils"
 )
 
 // UploadHandler handles file upload operations
@@ -43,7 +44,7 @@ func (h *UploadHandler) GetPresignedURL(c *gin.Context) {
 
 	var req PresignRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.SendValidationError(c, err)
 		return
 	}
 
@@ -89,13 +90,13 @@ func (h *UploadHandler) GetPresignedURL(c *gin.Context) {
 	// Generate presigned URL
 	uploadURL, err := h.r2.GeneratePresignedURL(ctx, key, req.ContentType)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate upload URL"})
+		utils.SendInternalError(c, err)
 		return
 	}
 
 	publicURL := h.r2.GetPublicURL(key)
 
-	c.JSON(http.StatusOK, PresignResponse{
+	utils.SendSuccess(c, "Presigned URL generated", PresignResponse{
 		UploadURL: uploadURL,
 		PublicURL: publicURL,
 		Key:       key,

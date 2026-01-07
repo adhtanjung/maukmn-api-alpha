@@ -7,10 +7,12 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 
 	"maukemana-backend/internal/auth"
 	"maukemana-backend/internal/database"
 	"maukemana-backend/internal/handlers"
+	"maukemana-backend/internal/middleware"
 	"maukemana-backend/internal/repositories"
 	"maukemana-backend/internal/storage"
 )
@@ -63,6 +65,7 @@ func Setup(db *database.DB) *gin.Engine {
 			poisAuth.Use(handlers.AuthMiddleware(db))
 			{
 				poisAuth.POST("", poiHandler.CreatePOI)
+				poisAuth.GET("/my", poiHandler.GetMyPOIs)
 				poisAuth.PUT("/:id", poiHandler.UpdatePOI)
 				poisAuth.DELETE("/:id", poiHandler.DeletePOI)
 				poisAuth.GET("/my-drafts", poiHandler.GetMyDrafts)
@@ -70,6 +73,26 @@ func Setup(db *database.DB) *gin.Engine {
 				poisAuth.POST("/:id/approve", poiHandler.ApprovePOI)
 				poisAuth.POST("/:id/reject", poiHandler.RejectPOI)
 				poisAuth.GET("/pending", poiHandler.GetPendingPOIs)
+				poisAuth.GET("/admin-list", poiHandler.GetAdminPOIs)
+
+				// Section-based editing
+				sectionHandler := handlers.NewPOISectionHandler(poiRepo)
+				poisAuth.GET("/:id/section/profile", sectionHandler.GetPOIProfile)
+				poisAuth.PUT("/:id/section/profile", sectionHandler.UpdatePOIProfile)
+				poisAuth.GET("/:id/section/location", sectionHandler.GetPOILocation)
+				poisAuth.PUT("/:id/section/location", sectionHandler.UpdatePOILocation)
+				poisAuth.GET("/:id/section/operations", sectionHandler.GetPOIOperations)
+				poisAuth.PUT("/:id/section/operations", sectionHandler.UpdatePOIOperations)
+				poisAuth.GET("/:id/section/social", sectionHandler.GetPOISocial)
+				poisAuth.PUT("/:id/section/social", sectionHandler.UpdatePOISocial)
+				poisAuth.GET("/:id/section/work-prod", sectionHandler.GetPOIWorkProd)
+				poisAuth.PUT("/:id/section/work-prod", sectionHandler.UpdatePOIWorkProd)
+				poisAuth.GET("/:id/section/atmosphere", sectionHandler.GetPOIAtmosphere)
+				poisAuth.PUT("/:id/section/atmosphere", sectionHandler.UpdatePOIAtmosphere)
+				poisAuth.GET("/:id/section/food-drink", sectionHandler.GetPOIFoodDrink)
+				poisAuth.PUT("/:id/section/food-drink", sectionHandler.UpdatePOIFoodDrink)
+				poisAuth.GET("/:id/section/contact", sectionHandler.GetPOIContact)
+				poisAuth.PUT("/:id/section/contact", sectionHandler.UpdatePOIContact)
 			}
 		}
 
@@ -100,8 +123,8 @@ func setupBaseRouter() *gin.Engine {
 	router := gin.New()
 
 	// Middleware
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
+	router.Use(otelgin.Middleware("maukemana-api"))
+	router.Use(middleware.Observability())
 
 	// CORS configuration
 	config := cors.DefaultConfig()
