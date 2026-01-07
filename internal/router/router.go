@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 
 	"maukemana-backend/internal/auth"
+	"maukemana-backend/internal/config"
 	"maukemana-backend/internal/database"
 	"maukemana-backend/internal/handlers"
 	"maukemana-backend/internal/middleware"
@@ -125,15 +126,12 @@ func setupBaseRouter() *gin.Engine {
 	// Middleware
 	router.Use(otelgin.Middleware("maukemana-api"))
 	router.Use(middleware.Observability())
+	router.Use(middleware.RateLimit())
 
 	// CORS configuration
-	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{
-		"http://localhost:8080",
-		"http://localhost:3000",
-		"http://localhost:5173",
-	}
-	config.AllowHeaders = []string{
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = config.GetAllowedOrigins()
+	corsConfig.AllowHeaders = []string{
 		"Origin",
 		"Content-Type",
 		"Authorization",
@@ -143,11 +141,11 @@ func setupBaseRouter() *gin.Engine {
 		"Pragma",
 		"X-Session-ID",
 	}
-	config.AllowMethods = []string{
+	corsConfig.AllowMethods = []string{
 		"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS",
 	}
-	config.AllowCredentials = true
-	router.Use(cors.New(config))
+	corsConfig.AllowCredentials = true
+	router.Use(cors.New(corsConfig))
 
 	return router
 }
