@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,16 +34,19 @@ func (h *POIHandler) SearchPOIs(c *gin.Context) {
 	// Build filters from query params
 	filters := make(map[string]interface{})
 
+	// Category filter
 	if category := c.Query("category_id"); category != "" {
 		if catID, err := uuid.Parse(category); err == nil {
 			filters["category_id"] = catID
 		}
 	}
 
+	// Legacy has_wifi boolean filter
 	if hasWifi := c.Query("has_wifi"); hasWifi == "true" {
 		filters["has_wifi"] = true
 	}
 
+	// Price range filter
 	if priceRange := c.Query("price_range"); priceRange != "" {
 		if pr, err := strconv.Atoi(priceRange); err == nil {
 			filters["price_range"] = pr
@@ -56,6 +60,73 @@ func (h *POIHandler) SearchPOIs(c *gin.Context) {
 	}
 	filters["status"] = status
 
+	// WiFi quality filter (string: none|slow|moderate|fast|excellent)
+	if wifiQuality := c.Query("wifi_quality"); wifiQuality != "" {
+		filters["wifi_quality"] = wifiQuality
+	}
+
+	// Noise level filter (string: silent|quiet|moderate|lively|loud)
+	if noiseLevel := c.Query("noise_level"); noiseLevel != "" {
+		filters["noise_level"] = noiseLevel
+	}
+
+	// Power outlets filter (string: none|limited|moderate|plenty)
+	if powerOutlets := c.Query("power_outlets"); powerOutlets != "" {
+		filters["power_outlets"] = powerOutlets
+	}
+
+	// Cuisine filter (string)
+	if cuisine := c.Query("cuisine"); cuisine != "" {
+		filters["cuisine"] = cuisine
+	}
+
+	// Has AC filter (boolean)
+	if hasAC := c.Query("has_ac"); hasAC == "true" {
+		filters["has_ac"] = true
+	} else if hasAC == "false" {
+		filters["has_ac"] = false
+	}
+
+	// Vibes filter (comma-separated array)
+	if vibes := c.Query("vibes"); vibes != "" {
+		filters["vibes"] = parseCommaSeparated(vibes)
+	}
+
+	// Crowd type filter (comma-separated array)
+	if crowdType := c.Query("crowd_type"); crowdType != "" {
+		filters["crowd_type"] = parseCommaSeparated(crowdType)
+	}
+
+	// Dietary options filter (comma-separated array)
+	if dietaryOptions := c.Query("dietary_options"); dietaryOptions != "" {
+		filters["dietary_options"] = parseCommaSeparated(dietaryOptions)
+	}
+
+	// Seating options filter (comma-separated array)
+	if seatingOptions := c.Query("seating_options"); seatingOptions != "" {
+		filters["seating_options"] = parseCommaSeparated(seatingOptions)
+	}
+
+	// Parking options filter (comma-separated array)
+	if parkingOptions := c.Query("parking_options"); parkingOptions != "" {
+		filters["parking_options"] = parseCommaSeparated(parkingOptions)
+	}
+
+	// Sort by filter (string: recommended|nearest|top_rated)
+	if sortBy := c.Query("sort_by"); sortBy != "" {
+		filters["sort_by"] = sortBy
+
+		// For "nearest" sorting, we need lat/lng
+		if sortBy == "nearest" {
+			if lat, err := strconv.ParseFloat(c.Query("lat"), 64); err == nil {
+				filters["lat"] = lat
+			}
+			if lng, err := strconv.ParseFloat(c.Query("lng"), 64); err == nil {
+				filters["lng"] = lng
+			}
+		}
+	}
+
 	pois, err := h.repo.Search(ctx, filters, limit, offset)
 	if err != nil {
 		utils.SendInternalError(c, err)
@@ -65,6 +136,22 @@ func (h *POIHandler) SearchPOIs(c *gin.Context) {
 	// Note: We currently don't have a total count from the repo, so we use the slice length + offset as a proxy or just the length.
 	// Ideally, the repo should return total count. For now, this standardizes the structure.
 	utils.SendPaginated(c, "POIs retrieved successfully", pois, page, limit, len(pois)+offset)
+}
+
+// parseCommaSeparated splits a comma-separated string into a slice of strings
+func parseCommaSeparated(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 // GetPOI handles GET /api/v1/pois/:id
@@ -443,18 +530,105 @@ func (h *POIHandler) GetNearbyPOIs(c *gin.Context) {
 // GetFilterOptions handles GET /api/v1/pois/filter-options
 func (h *POIHandler) GetFilterOptions(c *gin.Context) {
 	utils.SendSuccess(c, "Filter options retrieved", gin.H{
+		"sort_options": []gin.H{
+			{"value": "recommended", "label": "Recommended"},
+			{"value": "nearest", "label": "Nearest"},
+			{"value": "top_rated", "label": "Top Rated"},
+		},
 		"price_ranges": []gin.H{
 			{"value": 1, "label": "$"},
 			{"value": 2, "label": "$$"},
 			{"value": 3, "label": "$$$"},
 			{"value": 4, "label": "$$$$"},
 		},
-		"amenities": []string{
-			"wifi", "outdoor_seating", "power_outlets", "parking",
-			"wheelchair_accessible", "pet_friendly", "delivery",
+		"wifi_quality": []gin.H{
+			{"value": "any", "label": "Any"},
+			{"value": "slow", "label": "Slow"},
+			{"value": "moderate", "label": "Mid"},
+			{"value": "fast", "label": "Fast"},
+			{"value": "excellent", "label": "Best"},
 		},
-		"food_options": []string{
-			"vegan", "vegetarian", "halal", "gluten_free",
+		"noise_levels": []gin.H{
+			{"value": "silent", "label": "Silent"},
+			{"value": "quiet", "label": "Quiet"},
+			{"value": "moderate", "label": "Mid"},
+			{"value": "lively", "label": "Lively"},
+			{"value": "loud", "label": "Loud"},
+		},
+		"power_outlets": []gin.H{
+			{"value": "any", "label": "Any"},
+			{"value": "limited", "label": "Low"},
+			{"value": "moderate", "label": "Mid"},
+			{"value": "plenty", "label": "Many"},
+		},
+		"vibes": []gin.H{
+			{"value": "industrial", "label": "Industrial", "icon": "factory"},
+			{"value": "cozy", "label": "Cozy", "icon": "chair"},
+			{"value": "tropical", "label": "Tropical", "icon": "potted_plant"},
+			{"value": "minimalist", "label": "Minimalist", "icon": "crop_square"},
+			{"value": "luxury", "label": "Luxury", "icon": "diamond"},
+			{"value": "retro", "label": "Retro", "icon": "radio"},
+			{"value": "nature", "label": "Nature", "icon": "park"},
+		},
+		"crowd_types": []gin.H{
+			{"value": "quiet_study", "label": "Quiet / Study"},
+			{"value": "social_lively", "label": "Social / Lively"},
+			{"value": "business", "label": "Business"},
+		},
+		"dietary_options": []gin.H{
+			{"value": "vegan", "label": "Vegan"},
+			{"value": "vegetarian", "label": "Vegetarian"},
+			{"value": "halal", "label": "Halal"},
+			{"value": "gluten_free", "label": "Gluten-Free"},
+			{"value": "nut_free", "label": "Nut-Free"},
+		},
+		"seating_options": []gin.H{
+			{"value": "ergonomic", "label": "Ergonomic", "icon": "chair"},
+			{"value": "communal", "label": "Communal", "icon": "table_restaurant"},
+			{"value": "high-tops", "label": "High-tops", "icon": "countertops"},
+			{"value": "outdoor", "label": "Outdoor", "icon": "deck"},
+			{"value": "private-booths", "label": "Private Booths", "icon": "meeting_room"},
+		},
+		"parking_options": []gin.H{
+			{"value": "car", "label": "Car Parking"},
+			{"value": "motorcycle", "label": "Motorcycle"},
+			{"value": "valet", "label": "Valet Service"},
+		},
+		"cuisines": []gin.H{
+			{"value": "italian", "label": "Italian"},
+			{"value": "japanese", "label": "Japanese"},
+			{"value": "mexican", "label": "Mexican"},
+			{"value": "fusion", "label": "Fusion"},
+			{"value": "cafe", "label": "Cafe"},
+		},
+		"quick_filters": []gin.H{
+			{
+				"id":    "deep_work",
+				"label": "Deep Work",
+				"icon":  "rocket_launch",
+				"filters": gin.H{
+					"wifi_quality":  "fast",
+					"noise_level":   "quiet",
+					"power_outlets": "plenty",
+				},
+			},
+			{
+				"id":    "client_meeting",
+				"label": "Client Meeting",
+				"icon":  "handshake",
+				"filters": gin.H{
+					"noise_level": "moderate",
+					"vibes":       []string{"luxury", "minimalist"},
+				},
+			},
+			{
+				"id":    "date_night",
+				"label": "Date Night",
+				"icon":  "wine_bar",
+				"filters": gin.H{
+					"vibes": []string{"cozy", "luxury"},
+				},
+			},
 		},
 		"timestamp": time.Now().Unix(),
 	})
