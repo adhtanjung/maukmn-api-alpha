@@ -382,16 +382,30 @@ func (h *POIHandler) UpdatePOI(c *gin.Context) {
 	}
 
 	// Get user info from context
-	userID, _ := c.Get("user_id")
+	userID, userIDExists := c.Get("user_id")
 	role, _ := c.Get("user_role")
 	isAdmin := role == "admin"
 
 	// Authorization check: owner or admin
-	isOwner := poi.CreatedBy != nil && *poi.CreatedBy == userID.(uuid.UUID)
-	if !isOwner && !isAdmin {
+	// Special case: if created_by is NULL (orphan POI), allow any authenticated user to claim it
+	isOwner := false
+	if poi.CreatedBy != nil && userIDExists {
+		isOwner = *poi.CreatedBy == userID.(uuid.UUID)
+	}
+
+	// If POI has no owner (created_by is null), allow any authenticated user to edit
+	// This handles legacy POIs that were created before ownership tracking
+	isOrphanPOI := poi.CreatedBy == nil
+
+	if !isOwner && !isAdmin && !isOrphanPOI {
 		utils.SendError(c, http.StatusForbidden, "not authorized to edit this POI", nil)
 		return
 	}
+
+	// TODO: Optionally claim ownership of orphan POIs by updating created_by
+	// if isOrphanPOI && userIDExists {
+	//     h.repo.SetOwner(ctx, poiID, userID.(uuid.UUID))
+	// }
 
 	var input UpdatePOIRequest
 	if err := c.ShouldBindJSON(&input); err != nil {
