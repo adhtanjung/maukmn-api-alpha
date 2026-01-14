@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"maukemana-backend/internal/repositories"
 	"maukemana-backend/internal/utils"
@@ -21,6 +23,34 @@ func NewPOISectionHandler(repo *repositories.POIRepository) *POISectionHandler {
 	return &POISectionHandler{repo: repo}
 }
 
+// getPOIWithRetry attempts to fetch a POI with retry logic for transient errors
+// This helps handle database contention during concurrent read/write operations
+func (h *POISectionHandler) getPOIWithRetry(ctx context.Context, poiID uuid.UUID) (*repositories.POI, error) {
+	var poi *repositories.POI
+	var err error
+
+	// Try up to 3 times with exponential backoff
+	delays := []time.Duration{0, 50 * time.Millisecond, 100 * time.Millisecond}
+
+	for i, delay := range delays {
+		if delay > 0 {
+			time.Sleep(delay)
+		}
+
+		poi, err = h.repo.GetByID(ctx, poiID)
+		if err == nil {
+			return poi, nil
+		}
+
+		// If it's the last attempt, return the error
+		if i == len(delays)-1 {
+			return nil, err
+		}
+	}
+
+	return nil, err
+}
+
 // GetPOIProfile handles GET /api/v1/pois/:id/section/profile
 func (h *POISectionHandler) GetPOIProfile(c *gin.Context) {
 	poiID, err := uuid.Parse(c.Param("id"))
@@ -29,7 +59,7 @@ func (h *POISectionHandler) GetPOIProfile(c *gin.Context) {
 		return
 	}
 
-	poi, err := h.repo.GetByID(c.Request.Context(), poiID)
+	poi, err := h.getPOIWithRetry(c.Request.Context(), poiID)
 	if err != nil {
 		utils.SendError(c, http.StatusNotFound, "POI not found", err)
 		return
@@ -109,7 +139,7 @@ func (h *POISectionHandler) GetPOILocation(c *gin.Context) {
 		return
 	}
 
-	poi, err := h.repo.GetByID(c.Request.Context(), poiID)
+	poi, err := h.getPOIWithRetry(c.Request.Context(), poiID)
 	if err != nil {
 		utils.SendError(c, http.StatusNotFound, "POI not found", err)
 		return
@@ -149,7 +179,7 @@ func (h *POISectionHandler) GetPOIOperations(c *gin.Context) {
 		return
 	}
 
-	poi, err := h.repo.GetByID(c.Request.Context(), poiID)
+	poi, err := h.getPOIWithRetry(c.Request.Context(), poiID)
 	if err != nil {
 		utils.SendError(c, http.StatusNotFound, "POI not found", err)
 		return
@@ -217,7 +247,7 @@ func (h *POISectionHandler) GetPOISocial(c *gin.Context) {
 		return
 	}
 
-	poi, err := h.repo.GetByID(c.Request.Context(), poiID)
+	poi, err := h.getPOIWithRetry(c.Request.Context(), poiID)
 	if err != nil {
 		utils.SendError(c, http.StatusNotFound, "POI not found", err)
 		return
@@ -282,7 +312,7 @@ func (h *POISectionHandler) GetPOIContact(c *gin.Context) {
 		return
 	}
 
-	poi, err := h.repo.GetByID(c.Request.Context(), poiID)
+	poi, err := h.getPOIWithRetry(c.Request.Context(), poiID)
 	if err != nil {
 		utils.SendError(c, http.StatusNotFound, "POI not found", err)
 		return
@@ -352,7 +382,7 @@ func (h *POISectionHandler) GetPOIWorkProd(c *gin.Context) {
 		return
 	}
 
-	poi, err := h.repo.GetByID(c.Request.Context(), poiID)
+	poi, err := h.getPOIWithRetry(c.Request.Context(), poiID)
 	if err != nil {
 		utils.SendError(c, http.StatusNotFound, "POI not found", err)
 		return
@@ -414,7 +444,7 @@ func (h *POISectionHandler) GetPOIAtmosphere(c *gin.Context) {
 		return
 	}
 
-	poi, err := h.repo.GetByID(c.Request.Context(), poiID)
+	poi, err := h.getPOIWithRetry(c.Request.Context(), poiID)
 	if err != nil {
 		utils.SendError(c, http.StatusNotFound, "POI not found", err)
 		return
@@ -476,7 +506,7 @@ func (h *POISectionHandler) GetPOIFoodDrink(c *gin.Context) {
 		return
 	}
 
-	poi, err := h.repo.GetByID(c.Request.Context(), poiID)
+	poi, err := h.getPOIWithRetry(c.Request.Context(), poiID)
 	if err != nil {
 		utils.SendError(c, http.StatusNotFound, "POI not found", err)
 		return

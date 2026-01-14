@@ -18,3 +18,15 @@ type User struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
+
+// UserProfile represents the gamification profile of a user
+type UserProfile struct {
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Username    *string   `db:"username" json:"username,omitempty"`
+	AvatarURL   *string   `db:"avatar_url" json:"avatar_url,omitempty"`
+	ScoutLevel  int       `db:"scout_level" json:"scout_level"`
+	GlobalXP    int       `db:"global_xp" json:"global_xp"`
+	ImpactScore int       `db:"impact_score" json:"impact_score"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}

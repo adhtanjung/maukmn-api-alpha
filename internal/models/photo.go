@@ -17,5 +17,8 @@ type Photo struct {
 	IsPinned        bool       `db:"is_pinned" json:"is_pinned"`
 	Upvotes         int        `db:"upvotes" json:"upvotes"`
 	Downvotes       int        `db:"downvotes" json:"downvotes"`
+	VibeCategory    *string    `db:"vibe_category" json:"vibe_category,omitempty"`
+	Score           int        `db:"score" json:"score"`
+	IsHero          bool       `db:"is_hero" json:"is_hero"`
 	CreatedAt       time.Time  `db:"created_at" json:"created_at"`
 }

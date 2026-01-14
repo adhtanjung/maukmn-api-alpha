@@ -10,17 +10,22 @@ import (
 	"github.com/google/uuid"
 
 	"maukemana-backend/internal/repositories"
+	"maukemana-backend/internal/services"
 	"maukemana-backend/internal/utils"
 )
 
 // POIHandler handles POI-related HTTP requests
 type POIHandler struct {
-	repo *repositories.POIRepository
+	repo             *repositories.POIRepository
+	geocodingService services.GeocodingService
 }
 
 // NewPOIHandler creates a new POI handler
-func NewPOIHandler(repo *repositories.POIRepository) *POIHandler {
-	return &POIHandler{repo: repo}
+func NewPOIHandler(repo *repositories.POIRepository, geocodingService services.GeocodingService) *POIHandler {
+	return &POIHandler{
+		repo:             repo,
+		geocodingService: geocodingService,
+	}
 }
 
 // SearchPOIs handles GET /api/v1/pois
@@ -115,15 +120,31 @@ func (h *POIHandler) SearchPOIs(c *gin.Context) {
 	// Sort by filter (string: recommended|nearest|top_rated)
 	if sortBy := c.Query("sort_by"); sortBy != "" {
 		filters["sort_by"] = sortBy
+	}
 
-		// For "nearest" sorting, we need lat/lng
-		if sortBy == "nearest" {
-			if lat, err := strconv.ParseFloat(c.Query("lat"), 64); err == nil {
-				filters["lat"] = lat
-			}
-			if lng, err := strconv.ParseFloat(c.Query("lng"), 64); err == nil {
-				filters["lng"] = lng
-			}
+	// Lat/Lng parsing (needed for sort_by=nearest OR radius filter)
+	if latStr := c.Query("lat"); latStr != "" {
+		if lat, err := strconv.ParseFloat(latStr, 64); err == nil {
+			filters["lat"] = lat
+		}
+	}
+	if lngStr := c.Query("lng"); lngStr != "" {
+		if lng, err := strconv.ParseFloat(lngStr, 64); err == nil {
+			filters["lng"] = lng
+		}
+	}
+
+	// Radius filter (meters)
+	if radiusStr := c.Query("radius"); radiusStr != "" {
+		if radius, err := strconv.ParseFloat(radiusStr, 64); err == nil {
+			filters["radius"] = radius
+		}
+	}
+
+	// WiFi Speed Min filter
+	if wifiSpeedMinStr := c.Query("wifi_speed_min"); wifiSpeedMinStr != "" {
+		if speed, err := strconv.Atoi(wifiSpeedMinStr); err == nil {
+			filters["wifi_speed_min"] = speed
 		}
 	}
 
@@ -226,6 +247,7 @@ type CreatePOIRequest struct {
 	Email       *string                `json:"email"`
 	Website     *string                `json:"website"`
 	SocialLinks map[string]interface{} `json:"social_links"`
+	Status      *string                `json:"status"` // 'draft' or 'pending'
 }
 
 // CreatePOI handles POST /api/v1/pois
@@ -246,6 +268,32 @@ func (h *POIHandler) CreatePOI(c *gin.Context) {
 		}
 	}
 
+	// Auto-calculate district via reverse geocoding for ALL new POIs
+	addrDetails, err := h.geocodingService.ReverseGeocode(input.Latitude, input.Longitude)
+	if err != nil {
+		// Log but continue
+	}
+
+	// Determine address fields: prefer Geocoded for hierarchy, User Input for street line
+	var streetAddress *string = input.Address // Default to user input
+	var district, city, village, postalCode *string
+
+	if addrDetails != nil {
+		if streetAddress == nil || *streetAddress == "" {
+			streetAddress = &addrDetails.StreetAddress
+		}
+		district = &addrDetails.District
+		city = &addrDetails.City
+		village = &addrDetails.Village
+		postalCode = &addrDetails.PostalCode
+	}
+
+	// Determine status: user provided or default 'draft'
+	initialStatus := "draft"
+	if input.Status != nil && *input.Status == "pending" {
+		initialStatus = "pending"
+	}
+
 	poi, err := h.repo.Create(ctx, repositories.CreatePOIInput{
 		// Profile & Visuals
 		Name:             input.Name,
@@ -255,7 +303,11 @@ func (h *POIHandler) CreatePOI(c *gin.Context) {
 		CoverImageURL:    input.CoverImageURL,
 		GalleryImageURLs: input.GalleryImageURLs,
 		// Location
-		Address:              input.Address,
+		Address:              streetAddress,
+		District:             district,
+		City:                 city,
+		Village:              village,
+		PostalCode:           postalCode,
 		FloorUnit:            input.FloorUnit,
 		Latitude:             input.Latitude,
 		Longitude:            input.Longitude,
@@ -298,13 +350,15 @@ func (h *POIHandler) CreatePOI(c *gin.Context) {
 		Website:     input.Website,
 		SocialLinks: input.SocialLinks,
 		// Metadata
-		CreatedBy: createdBy,
+		CreatedBy:     createdBy,
+		InitialStatus: &initialStatus,
 	})
 	if err != nil {
 		utils.SendInternalError(c, err)
 		return
 	}
 
+	// Use Created (201) and return the created object
 	utils.SendCreated(c, "POI created successfully", poi)
 }
 
@@ -525,7 +579,7 @@ func (h *POIHandler) GetNearbyPOIs(c *gin.Context) {
 	}
 
 	radius, _ := strconv.Atoi(c.DefaultQuery("radius", "5000"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
 
 	pois, err := h.repo.GetNearby(ctx, lat, lng, radius, limit)
 	if err != nil {
@@ -715,6 +769,8 @@ func (h *POIHandler) ApprovePOI(c *gin.Context) {
 		utils.SendInternalError(c, err)
 		return
 	}
+
+	// TODO: Trigger XP reward logic (+100 XP) for the user who submitted/created this POI (BE-104)
 
 	utils.SendSuccess(c, "POI approved", nil)
 }

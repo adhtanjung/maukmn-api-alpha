@@ -15,6 +15,7 @@ import (
 	"maukemana-backend/internal/handlers"
 	"maukemana-backend/internal/middleware"
 	"maukemana-backend/internal/repositories"
+	"maukemana-backend/internal/services"
 	"maukemana-backend/internal/storage"
 )
 
@@ -23,8 +24,11 @@ func Setup(db *database.DB) *gin.Engine {
 	// Initialize repositories
 	poiRepo := repositories.NewPOIRepository(db)
 
+	// Initialize services
+	geocodingService := services.NewMockGeocodingService()
+
 	// Initialize handlers
-	poiHandler := handlers.NewPOIHandler(poiRepo)
+	poiHandler := handlers.NewPOIHandler(poiRepo, geocodingService)
 	categoryHandler := handlers.NewCategoryHandler(db)
 	vocabHandler := handlers.NewVocabularyHandler(db)
 	authHandler := handlers.NewAuthHandler(db)
@@ -126,7 +130,14 @@ func setupBaseRouter() *gin.Engine {
 	// Middleware
 	router.Use(otelgin.Middleware("maukemana-api"))
 	router.Use(middleware.Observability())
+	router.Use(middleware.SecurityHeaders()) // Add security headers
 	router.Use(middleware.RateLimit())
+
+	// Trusted Proxies Configuration
+	// In production, you should set this to the specific IP ranges of your load balancers or reverse proxies.
+	// For now, setting it to nil means we don't trust any proxy headers (X-Forwarded-For, etc.)
+	// This prevents IP spoofing if not behind a configured proxy.
+	router.SetTrustedProxies(nil)
 
 	// CORS configuration
 	corsConfig := cors.DefaultConfig()
