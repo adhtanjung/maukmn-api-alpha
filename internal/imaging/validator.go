@@ -35,10 +35,10 @@ type CategoryLimits struct {
 
 // GetCategoryLimits returns limits for a given category
 func GetCategoryLimits(category string) CategoryLimits {
-	// All categories now have 3MB limit as per user request
+	// All categories now have 15MB limit as per user request to allow high-res uploads
 	return CategoryLimits{
-		MaxBytes:     3 * 1024 * 1024, // 3MB
-		MaxDimension: 4000,            // 4000px
+		MaxBytes:     15 * 1024 * 1024, // 15MB
+		MaxDimension: 6000,             // 6000px
 	}
 }
 
