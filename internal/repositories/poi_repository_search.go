@@ -32,7 +32,7 @@ func (r *POIRepository) Search(ctx context.Context, filters map[string]interface
 		       u.name as founding_user_username`
 
 	if needsDistance {
-		selectClause += fmt.Sprintf(",\n		       ST_Distance(location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) as distance_meters")
+		selectClause += ",\n		       ST_Distance(location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) as distance_meters"
 	}
 
 	query := selectClause + `

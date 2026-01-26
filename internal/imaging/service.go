@@ -1,0 +1,477 @@
+package imaging
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// ProcessingStatus represents the status of an image processing job
+type ProcessingStatus string
+
+const (
+	StatusPending    ProcessingStatus = "pending"
+	StatusProcessing ProcessingStatus = "processing"
+	StatusReady      ProcessingStatus = "ready"
+	StatusFailed     ProcessingStatus = "failed"
+)
+
+// ImageAsset represents a processed image asset with all its derivatives
+type ImageAsset struct {
+	ID              uuid.UUID        `json:"id" db:"id"`
+	ContentHash     string           `json:"content_hash" db:"content_hash"`
+	OriginalWidth   int              `json:"original_width" db:"original_width"`
+	OriginalHeight  int              `json:"original_height" db:"original_height"`
+	OriginalFormat  string           `json:"original_format" db:"original_format"`
+	OriginalSize    int64            `json:"original_size" db:"original_size"`
+	HasAlpha        bool             `json:"has_alpha" db:"has_alpha"`
+	Category        string           `json:"category" db:"category"`
+	Status          ProcessingStatus `json:"status" db:"status"`
+	Error           string           `json:"error,omitempty" db:"error"`
+	Version         int              `json:"version" db:"version"`
+	Derivatives     []Derivative     `json:"derivatives,omitempty" db:"-"`
+	CreatedAt       time.Time        `json:"created_at" db:"created_at"`
+	ProcessedAt     *time.Time       `json:"processed_at,omitempty" db:"processed_at"`
+	CreatedByUserID uuid.UUID        `json:"created_by_user_id" db:"created_by_user_id"`
+}
+
+// Derivative represents a single image derivative
+type Derivative struct {
+	ID            uuid.UUID `json:"id" db:"id"`
+	AssetID       uuid.UUID `json:"asset_id" db:"asset_id"`
+	RenditionName string    `json:"rendition_name" db:"rendition_name"`
+	Format        string    `json:"format" db:"format"`
+	Width         int       `json:"width" db:"width"`
+	Height        int       `json:"height" db:"height"`
+	SizeBytes     int       `json:"size_bytes" db:"size_bytes"`
+	StorageKey    string    `json:"storage_key" db:"storage_key"`
+}
+
+// ProcessingJob represents a job in the processing queue
+type ProcessingJob struct {
+	ID          uuid.UUID  `db:"id"`
+	UploadKey   string     `db:"upload_key"`
+	Category    string     `db:"category"`
+	UserID      uuid.UUID  `db:"user_id"`
+	AssetID     *uuid.UUID `db:"asset_id"` // Link to asset once created
+	ContentHash string     `db:"content_hash"`
+	CreatedAt   time.Time  `db:"created_at"`
+	Attempts    int        `db:"attempts"`
+	LastError   string     `db:"last_error"`
+	Status      string     `db:"status"` // Added status to struct
+}
+
+// ImagingRepositoryInterface defines the storage operations for image assets
+type ImagingRepositoryInterface interface {
+	CreateAsset(ctx context.Context, asset *ImageAsset) error
+	UpdateAssetStatus(ctx context.Context, id uuid.UUID, status ProcessingStatus, errorMessage string) error
+	GetAssetByHash(ctx context.Context, hash string) (*ImageAsset, error)
+	GetAssetByID(ctx context.Context, id uuid.UUID) (*ImageAsset, error)
+	CreateDerivative(ctx context.Context, d Derivative) error
+	GetDerivatives(ctx context.Context, assetID uuid.UUID) ([]Derivative, error)
+	CreateJob(ctx context.Context, job *ProcessingJob) error
+	UpdateJob(ctx context.Context, id uuid.UUID, status ProcessingStatus, assetID *uuid.UUID, attempts int, lastError string) error
+	GetPendingJobs(ctx context.Context) ([]ProcessingJob, error)
+	GetJobByID(ctx context.Context, id uuid.UUID) (*ProcessingJob, error)
+}
+
+// Service manages image processing operations
+type Service struct {
+	processor *Processor
+	r2Client  R2ClientInterface
+	repo      ImagingRepositoryInterface
+
+	// Job queue
+	jobQueue chan *ProcessingJob
+
+	// Worker pool
+	workerCount int
+	wg          sync.WaitGroup
+	ctx         context.Context
+	cancel      context.CancelFunc
+}
+
+// R2ClientInterface defines the interface for R2 operations
+type R2ClientInterface interface {
+	GetObject(ctx context.Context, key string) ([]byte, error)
+	PutObject(ctx context.Context, key string, data []byte, contentType string) error
+	DeleteObject(ctx context.Context, key string) error
+	GetPublicURL(key string) string
+	MoveObject(ctx context.Context, srcKey, dstKey string) error
+}
+
+// NewService creates a new imaging service
+func NewService(r2Client R2ClientInterface, repo ImagingRepositoryInterface, workerCount int) *Service {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	s := &Service{
+		processor:   NewProcessor(),
+		r2Client:    r2Client,
+		repo:        repo,
+		jobQueue:    make(chan *ProcessingJob, 1000),
+		workerCount: workerCount,
+		ctx:         ctx,
+		cancel:      cancel,
+	}
+
+	// Start worker pool
+	s.startWorkers()
+
+	// Resume pending jobs from database
+	go s.resumePendingJobs()
+
+	return s
+}
+
+func (s *Service) resumePendingJobs() {
+	time.Sleep(1 * time.Second) // Small delay for startup stability
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
+	jobs, err := s.repo.GetPendingJobs(ctx)
+	if err != nil {
+		log.Printf("Failed to get pending jobs: %v", err)
+		return
+	}
+
+	for _, job := range jobs {
+		j := job // copy
+		select {
+		case s.jobQueue <- &j:
+			log.Printf("Resumed pending job %s", j.ID)
+		default:
+			log.Printf("Job queue full, skipping pending job %s", j.ID)
+		}
+	}
+}
+
+// Stop gracefully stops the service
+func (s *Service) Stop() {
+	s.cancel()
+	close(s.jobQueue)
+	s.wg.Wait()
+}
+
+// startWorkers starts the image processing worker pool
+func (s *Service) startWorkers() {
+	for i := 0; i < s.workerCount; i++ {
+		s.wg.Add(1)
+		go s.worker(i)
+	}
+}
+
+// worker processes jobs from the queue
+func (s *Service) worker(id int) {
+	defer s.wg.Done()
+
+	for job := range s.jobQueue {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+			log.Printf("Worker %d processing job %s", id, job.ID)
+			if err := s.processJob(job); err != nil {
+				log.Printf("Worker %d failed to process job %s: %v", id, job.ID, err)
+				s.handleJobFailure(job, err)
+			}
+		}
+	}
+}
+
+// QueueProcessing queues an image for processing
+func (s *Service) QueueProcessing(uploadKey, category string, userID uuid.UUID) (uuid.UUID, error) {
+	job := &ProcessingJob{
+		ID:        uuid.New(),
+		UploadKey: uploadKey,
+		Category:  category,
+		UserID:    userID,
+		CreatedAt: time.Now(),
+	}
+
+	if err := s.repo.CreateJob(s.ctx, job); err != nil {
+		return uuid.Nil, fmt.Errorf("failed to create job: %w", err)
+	}
+
+	select {
+	case s.jobQueue <- job:
+		return job.ID, nil
+	default:
+		// Even if queue is full, job is in DB so it can be resumed later
+		return job.ID, nil
+	}
+}
+
+// processJob handles the full image processing pipeline
+func (s *Service) processJob(job *ProcessingJob) error {
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Minute)
+	defer cancel()
+
+	// 1. Download original from R2
+	data, err := s.r2Client.GetObject(ctx, job.UploadKey)
+	if err != nil {
+		return fmt.Errorf("failed to download original: %w", err)
+	}
+
+	// 2. Validate
+	validation, err := ValidateImage(data, job.Category)
+	if err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	job.ContentHash = validation.ContentHash
+
+	// 3. Check for existing asset (dedup)
+	existingAsset, err := s.repo.GetAssetByHash(ctx, validation.ContentHash)
+	if err != nil {
+		return fmt.Errorf("failed to check existing asset: %w", err)
+	}
+
+	if existingAsset != nil && existingAsset.Status == StatusReady {
+		log.Printf("Asset with hash %s already exists, reusing", validation.ContentHash)
+		// Update job to point to existing asset
+		s.repo.UpdateJob(ctx, job.ID, StatusReady, &existingAsset.ID, job.Attempts, "")
+		// Clean up the upload (original is same content)
+		s.r2Client.DeleteObject(ctx, job.UploadKey)
+		return nil
+	}
+
+	// 4. Create asset record
+	asset := &ImageAsset{
+		ID:              uuid.New(),
+		ContentHash:     validation.ContentHash,
+		OriginalWidth:   validation.Width,
+		OriginalHeight:  validation.Height,
+		OriginalFormat:  validation.Format,
+		OriginalSize:    validation.OriginalSize,
+		HasAlpha:        validation.HasAlpha,
+		Category:        job.Category,
+		Status:          StatusProcessing,
+		Version:         1,
+		CreatedAt:       time.Now(),
+		CreatedByUserID: job.UserID,
+	}
+
+	if err := s.repo.CreateAsset(ctx, asset); err != nil {
+		return fmt.Errorf("failed to create asset record: %w", err)
+	}
+
+	// Link job to new asset
+	s.repo.UpdateJob(ctx, job.ID, StatusProcessing, &asset.ID, job.Attempts, "")
+
+	// 5. Strip EXIF from original
+	strippedData, err := s.processor.StripEXIF(data)
+	if err != nil {
+		log.Printf("Warning: failed to strip EXIF: %v", err)
+		strippedData = data // Use original if stripping fails
+	}
+
+	// 6. Generate renditions
+	processed, err := s.processor.ProcessImage(strippedData, job.Category, validation.HasAlpha)
+	if err != nil {
+		s.repo.UpdateAssetStatus(ctx, asset.ID, StatusFailed, err.Error())
+		return fmt.Errorf("processing failed: %w", err)
+	}
+
+	// 7. Upload derivatives to R2
+	var derivatives []Derivative
+	hashPrefix := validation.ContentHash[:2]
+
+	for _, p := range processed {
+		storageKey := fmt.Sprintf("derivatives/%s/%s/v%d/%s.%s",
+			hashPrefix, validation.ContentHash, asset.Version, p.Name, p.Format)
+
+		contentType := getContentType(p.Format)
+		if err := s.r2Client.PutObject(ctx, storageKey, p.Data, contentType); err != nil {
+			log.Printf("Warning: failed to upload derivative %s: %v", storageKey, err)
+			continue
+		}
+
+		d := Derivative{
+			ID:            uuid.New(),
+			AssetID:       asset.ID,
+			RenditionName: p.Name,
+			Format:        p.Format,
+			Width:         p.Width,
+			Height:        p.Height,
+			SizeBytes:     p.SizeBytes,
+			StorageKey:    storageKey,
+		}
+
+		if err := s.repo.CreateDerivative(ctx, d); err != nil {
+			log.Printf("Warning: failed to save derivative record %s: %v", storageKey, err)
+			continue
+		}
+		derivatives = append(derivatives, d)
+	}
+
+	// 8. Move original to permanent location
+	originalKey := fmt.Sprintf("originals/%s/%s/original", hashPrefix, validation.ContentHash)
+	if err := s.r2Client.MoveObject(ctx, job.UploadKey, originalKey); err != nil {
+		log.Printf("Warning: failed to move original: %v", err)
+	}
+
+	// 9. Update asset status
+	if err := s.repo.UpdateAssetStatus(ctx, asset.ID, StatusReady, ""); err != nil {
+		log.Printf("Warning: failed to update asset status: %v", err)
+	}
+
+	// Mark job as ready
+	s.repo.UpdateJob(ctx, job.ID, StatusReady, &asset.ID, job.Attempts, "")
+
+	log.Printf("Successfully processed asset %s with %d derivatives", asset.ID, len(derivatives))
+	return nil
+}
+
+// handleJobFailure handles failed jobs with retry logic
+func (s *Service) handleJobFailure(job *ProcessingJob, err error) {
+	job.Attempts++
+	job.LastError = err.Error()
+
+	ctx := context.Background()
+
+	if job.Attempts < 3 {
+		s.repo.UpdateJob(ctx, job.ID, StatusPending, nil, job.Attempts, job.LastError)
+		// Retry with exponential backoff
+		go func() {
+			time.Sleep(time.Duration(job.Attempts*job.Attempts) * time.Second)
+			select {
+			case s.jobQueue <- job:
+			default:
+				log.Printf("Failed to requeue job %s", job.ID)
+			}
+		}()
+	} else {
+		// Mark as permanently failed
+		log.Printf("Job %s failed after %d attempts: %s", job.ID, job.Attempts, job.LastError)
+		s.repo.UpdateJob(ctx, job.ID, StatusFailed, nil, job.Attempts, job.LastError)
+	}
+}
+
+// GetAsset retrieves an asset by content hash
+func (s *Service) GetAsset(contentHash string) (*ImageAsset, bool) {
+	asset, err := s.repo.GetAssetByHash(context.Background(), contentHash)
+	if err != nil || asset == nil {
+		return nil, false
+	}
+	return asset, true
+}
+
+// GetAssetByID retrieves an asset by ID
+func (s *Service) GetAssetByID(id uuid.UUID) (*ImageAsset, bool) {
+	asset, err := s.repo.GetAssetByID(context.Background(), id)
+	if err != nil || asset == nil {
+		return nil, false
+	}
+	return asset, true
+}
+
+// GetJobByID retrieves a specific processing job by its ID
+func (s *Service) GetJobByID(id uuid.UUID) (*ProcessingJob, bool) {
+	job, err := s.repo.GetJobByID(context.Background(), id)
+	if err != nil || job == nil {
+		return nil, false
+	}
+	return job, true
+}
+
+// GetDerivativeURL returns the CDN URL for a specific derivative
+func (s *Service) GetDerivativeURL(contentHash, renditionName string) string {
+	// Return the CDN-friendly URL pattern
+	// CDN will handle format negotiation based on Accept header
+	return fmt.Sprintf("/img/%s/%s", contentHash, renditionName)
+}
+
+// GetDerivativeKey returns the storage key for a specific derivative
+// This attempts to find the best format match for the rendition
+func (s *Service) GetDerivativeKey(contentHash, renditionName, preferredFormat string) (string, string, error) {
+	asset, err := s.repo.GetAssetByHash(context.Background(), contentHash)
+	if err != nil {
+		return "", "", fmt.Errorf("lookup failed: %w", err)
+	}
+	if asset == nil {
+		return "", "", fmt.Errorf("asset not found")
+	}
+
+	if asset.Status != StatusReady {
+		return "", "", fmt.Errorf("asset not ready")
+	}
+
+	// Find all derivatives for this rendition
+	var candidates []Derivative
+	for _, d := range asset.Derivatives {
+		if d.RenditionName == renditionName {
+			candidates = append(candidates, d)
+		}
+	}
+
+	if len(candidates) == 0 {
+		// Fallback: If the specific rendition doesn't exist (e.g. source image was too small),
+		// find the largest available rendition for the same category.
+		// Rendition names are like "cover_320", so we can find others in the same category.
+		category := ""
+		if idx := strings.Index(renditionName, "_"); idx != -1 {
+			category = renditionName[:idx]
+		}
+
+		if category != "" {
+			for _, d := range asset.Derivatives {
+				if strings.HasPrefix(d.RenditionName, category) {
+					candidates = append(candidates, d)
+				}
+			}
+		}
+
+		// If still no candidates, just take all derivatives
+		if len(candidates) == 0 {
+			if len(asset.Derivatives) == 0 {
+				return "", "", fmt.Errorf("no derivatives found")
+			}
+			candidates = asset.Derivatives
+		}
+
+		// Sort or pick the best candidate from the fallback list
+		// For simplicity, we just use the list we have now.
+	}
+
+	// Try to match specific format if requested
+	if preferredFormat != "" {
+		for _, d := range candidates {
+			if d.Format == preferredFormat {
+				return d.StorageKey, d.Format, nil
+			}
+		}
+	}
+
+	// Priority: avif > webp > jpg/png
+	priorities := []string{"avif", "webp", "jpeg", "jpg", "png"}
+	for _, format := range priorities {
+		for _, d := range candidates {
+			if d.Format == format {
+				return d.StorageKey, d.Format, nil
+			}
+		}
+	}
+
+	return candidates[0].StorageKey, candidates[0].Format, nil
+}
+
+// getContentType returns the MIME type for a format
+func getContentType(format string) string {
+	switch format {
+	case "avif":
+		return "image/avif"
+	case "webp":
+		return "image/webp"
+	case "jpg", "jpeg":
+		return "image/jpeg"
+	case "png":
+		return "image/png"
+	default:
+		return "application/octet-stream"
+	}
+}

@@ -1,8 +1,10 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -80,4 +82,76 @@ func (r *R2Client) DeleteObject(ctx context.Context, key string) error {
 		Key:    aws.String(key),
 	})
 	return err
+}
+
+// GetObject retrieves an object from R2
+func (r *R2Client) GetObject(ctx context.Context, key string) ([]byte, error) {
+	result, err := r.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(r.bucketName),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object: %w", err)
+	}
+	defer result.Body.Close()
+
+	data, err := io.ReadAll(result.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read object body: %w", err)
+	}
+
+	return data, nil
+}
+
+// PutObject uploads an object to R2
+func (r *R2Client) PutObject(ctx context.Context, key string, data []byte, contentType string) error {
+	_, err := r.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(r.bucketName),
+		Key:         aws.String(key),
+		Body:        bytes.NewReader(data),
+		ContentType: aws.String(contentType),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to put object: %w", err)
+	}
+	return nil
+}
+
+// MoveObject moves an object from one key to another (copy + delete)
+func (r *R2Client) MoveObject(ctx context.Context, srcKey, dstKey string) error {
+	// Copy to new location
+	copySource := fmt.Sprintf("%s/%s", r.bucketName, srcKey)
+	_, err := r.client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:     aws.String(r.bucketName),
+		Key:        aws.String(dstKey),
+		CopySource: aws.String(copySource),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to copy object: %w", err)
+	}
+
+	// Delete original
+	if err := r.DeleteObject(ctx, srcKey); err != nil {
+		return fmt.Errorf("failed to delete original after copy: %w", err)
+	}
+
+	return nil
+}
+
+// GeneratePresignedURLWithMaxSize creates a presigned URL with content-length constraints
+func (r *R2Client) GeneratePresignedURLWithMaxSize(ctx context.Context, key string, contentType string, maxSizeBytes int64) (string, error) {
+	presignClient := s3.NewPresignClient(r.client)
+
+	request, err := presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket:        aws.String(r.bucketName),
+		Key:           aws.String(key),
+		ContentType:   aws.String(contentType),
+		ContentLength: aws.Int64(maxSizeBytes),
+	}, s3.WithPresignExpires(15*time.Minute))
+
+	if err != nil {
+		return "", fmt.Errorf("failed to create presigned URL: %w", err)
+	}
+
+	return request.URL, nil
 }

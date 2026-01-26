@@ -39,7 +39,7 @@ func Setup(db *database.DB) *gin.Engine {
 	if err != nil {
 		log.Printf("Warning: R2 storage not configured: %v", err)
 	} else {
-		uploadHandler = handlers.NewUploadHandler(r2Client)
+		uploadHandler = handlers.NewUploadHandler(r2Client, db)
 	}
 
 	// Initialize Clerk
@@ -107,7 +107,15 @@ func Setup(db *database.DB) *gin.Engine {
 			uploads.Use(handlers.AuthMiddleware(db))
 			{
 				uploads.POST("/presign", uploadHandler.GetPresignedURL)
+				uploads.POST("/finalize", uploadHandler.FinalizeUpload)
 				uploads.DELETE("", uploadHandler.DeleteUpload)
+			}
+
+			// Asset routes (require auth)
+			assets := v1.Group("/assets")
+			assets.Use(handlers.AuthMiddleware(db))
+			{
+				assets.GET("/:id", uploadHandler.GetAssetStatus)
 			}
 		}
 
@@ -117,6 +125,9 @@ func Setup(db *database.DB) *gin.Engine {
 		// Vocabulary routes
 		v1.GET("/vocabularies", vocabHandler.GetVocabularies)
 	}
+
+	// Public image serving route
+	router.GET("/img/:hash/:rendition", uploadHandler.ServeImage)
 
 	// API documentation endpoint
 	router.GET("/api", apiDocumentation())
