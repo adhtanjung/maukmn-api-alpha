@@ -1,8 +1,8 @@
 # Build stage
 FROM golang:1.24-alpine AS builder
 
-# Install git for fetching dependencies
-RUN apk add --no-cache git
+# Install git and vips-dev for govips
+RUN apk add --no-cache git vips-dev build-base pkgconfig
 
 WORKDIR /app
 
@@ -21,8 +21,8 @@ RUN go build -o server cmd/server/main.go
 # Run stage
 FROM alpine:latest
 
-# Install ca-certificates for sending mails or making https requests
-RUN apk --no-cache add ca-certificates
+# Install ca-certificates and vips runtime
+RUN apk --no-cache add ca-certificates vips
 
 WORKDIR /root/
 

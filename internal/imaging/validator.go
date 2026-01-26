@@ -6,13 +6,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
 	"io"
 
-	_ "golang.org/x/image/webp"
+	"github.com/davidbyttow/govips/v2/vips"
 )
 
 // ValidationResult contains the results of image validation
@@ -132,34 +128,32 @@ func ValidateImage(data []byte, category string) (*ValidationResult, error) {
 
 	result.Format = format
 
-	// 3. Decode image to get dimensions (use Go's image package for basic validation)
-	// For production, we'll use libvips for full decoding
-	reader := bytes.NewReader(data)
-	config, _, err := image.DecodeConfig(reader)
-	if err != nil {
-		// Try to continue - some formats may not be supported by Go's image package
-		// In production, libvips will handle all formats
-		if format != "heic" && format != "avif" {
-			result.Error = fmt.Sprintf("failed to decode image: %v", err)
-			return result, errors.New(result.Error)
-		}
-		// For HEIC/AVIF, we'll validate dimensions during processing
-		config.Width = 0
-		config.Height = 0
-	}
+	// 3. Decode image metadata using libvips (fast header read)
+	srcParams := vips.NewImportParams()
+	srcParams.FailOnError.Set(true)
 
-	result.Width = config.Width
-	result.Height = config.Height
+	// Load as ImageRef to check properties
+	img, err := vips.LoadImageFromBuffer(data, srcParams)
+	if err != nil {
+		result.Error = fmt.Sprintf("failed to decode image: %v", err)
+		return result, errors.New(result.Error)
+	}
+	defer img.Close()
+
+	result.Width = img.Width()
+	result.Height = img.Height()
+	result.HasAlpha = img.HasAlpha()
 
 	// 4. Check dimensions (decompression bomb protection)
-	if config.Width > limits.MaxDimension || config.Height > limits.MaxDimension {
-		result.Error = fmt.Sprintf("image dimensions %dx%d exceed maximum %d", config.Width, config.Height, limits.MaxDimension)
+	if result.Width > limits.MaxDimension || result.Height > limits.MaxDimension {
+		result.Error = fmt.Sprintf("image dimensions %dx%d exceed maximum %d", result.Width, result.Height, limits.MaxDimension)
 		return result, errors.New(result.Error)
 	}
 
 	// Check for decompression bomb (too many pixels)
+	// Govips prevents some of this, but explicit check is good
 	maxPixels := int64(64 * 1024 * 1024) // 64 megapixels
-	if int64(config.Width)*int64(config.Height) > maxPixels {
+	if int64(result.Width)*int64(result.Height) > maxPixels {
 		result.Error = "image too large (potential decompression bomb)"
 		return result, errors.New(result.Error)
 	}
@@ -168,29 +162,17 @@ func ValidateImage(data []byte, category string) (*ValidationResult, error) {
 	hash := sha256.Sum256(data)
 	result.ContentHash = hex.EncodeToString(hash[:])
 
-	// 6. Detect if image has alpha channel
-	reader.Seek(0, io.SeekStart)
-	img, _, err := image.Decode(reader)
-	if err == nil {
-		result.HasAlpha = hasAlphaChannel(img)
-	}
-
 	result.Valid = true
 	return result, nil
-}
-
-// hasAlphaChannel checks if an image has an alpha channel
-func hasAlphaChannel(img image.Image) bool {
-	switch img.(type) {
-	case *image.RGBA, *image.NRGBA, *image.RGBA64, *image.NRGBA64:
-		return true
-	default:
-		return false
-	}
 }
 
 // ComputeContentHash computes SHA-256 hash of data
 func ComputeContentHash(data []byte) string {
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:])
+}
+
+// Deprecated: hasAlphaChannel is no longer used directly, vips handles it
+func hasAlphaChannelReader(reader io.Reader) bool {
+	return false
 }
