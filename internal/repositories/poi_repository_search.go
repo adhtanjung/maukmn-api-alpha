@@ -29,7 +29,12 @@ func (r *POIRepository) Search(ctx context.Context, filters map[string]interface
 		       p.seating_options, p.parking_options, p.has_ac, p.dietary_options,
 		       p.founding_user_id, p.wifi_speed_mbps, p.wifi_verified_at, p.ergonomic_seating, p.power_sockets_reach,
 		       ST_Y(p.location::geometry) as latitude, ST_X(p.location::geometry) as longitude,
-		       u.name as founding_user_username`
+		       u.name as founding_user_username,
+		       COALESCE(
+		           (SELECT AVG(rating)::float8 FROM reviews r WHERE r.poi_id = p.poi_id),
+		           0
+		       ) as rating_avg,
+		       (SELECT COUNT(*)::int FROM reviews r WHERE r.poi_id = p.poi_id) as reviews_count`
 
 	if needsDistance {
 		selectClause += ",\n		       ST_Distance(location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) as distance_meters"
@@ -37,7 +42,7 @@ func (r *POIRepository) Search(ctx context.Context, filters map[string]interface
 
 	query := selectClause + `
 		FROM points_of_interest p
-		LEFT JOIN users u ON p.founding_user_id = u.user_id
+		LEFT JOIN users u ON COALESCE(p.founding_user_id, p.created_by) = u.user_id
 		WHERE 1=1
 	`
 
@@ -193,17 +198,17 @@ func (r *POIRepository) Search(ctx context.Context, filters map[string]interface
 func (r *POIRepository) GetByID(ctx context.Context, poiID uuid.UUID) (*POI, error) {
 	var poi POI
 	query := `
-		SELECT poi_id, name, category_id, website, brand, description,
+		SELECT poi_id, points_of_interest.name, category_id, points_of_interest.website, brand, description,
 		       points_of_interest.address_id, parking_info, amenities, has_wifi, outdoor_seating,
 		       is_wheelchair_accessible, has_delivery, cuisine, price_range,
 		       food_options, payment_options, kids_friendly, smoker_friendly,
-		       pet_friendly, status, is_verified, verified_at, created_at, updated_at,
+		       pet_friendly, points_of_interest.status, is_verified, verified_at, points_of_interest.created_at, points_of_interest.updated_at, points_of_interest.created_by,
 		       floor_unit, public_transport, cover_image_url, gallery_image_urls,
 		       wifi_quality, power_outlets, seating_options, noise_level, has_ac,
 		       vibes, crowd_type, lighting, music_type, cleanliness, dietary_options,
 		       featured_menu_items, specials, open_hours, reservation_required,
 		       reservation_platform, wait_time_estimate, happy_hour_info, loyalty_program,
-		       phone, email, social_media_links, category_ids, parking_options, pet_policy,
+		       points_of_interest.phone, points_of_interest.email, social_media_links, category_ids, parking_options, pet_policy,
 		       founding_user_id, wifi_speed_mbps, wifi_verified_at, ergonomic_seating, power_sockets_reach,
 		       ST_Y(location::geometry) as latitude, ST_X(location::geometry) as longitude,
 		       (
@@ -212,9 +217,16 @@ func (r *POIRepository) GetByID(ctx context.Context, poiID uuid.UUID) (*POI, err
 		           WHERE category_id = points_of_interest.category_id
 		              OR category_id::text = ANY(points_of_interest.category_ids)
 		       ) as category_names,
-		       a.street_address as address
+		       a.street_address as address,
+		       u.name as founding_user_username,
+		       COALESCE(
+		           (SELECT AVG(rating)::float8 FROM reviews r WHERE r.poi_id = points_of_interest.poi_id),
+		           0
+		       ) as rating_avg,
+		       (SELECT COUNT(*)::int FROM reviews r WHERE r.poi_id = points_of_interest.poi_id) as reviews_count
 		FROM points_of_interest
 		LEFT JOIN addresses a ON points_of_interest.address_id = a.address_id
+		LEFT JOIN users u ON COALESCE(points_of_interest.founding_user_id, points_of_interest.created_by) = u.user_id
 		WHERE poi_id = $1
 	`
 
@@ -244,8 +256,15 @@ func (r *POIRepository) GetNearby(ctx context.Context, lat, lng float64, radiusM
 			ST_Distance(
 				location,
 				ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
-			) as distance_meters
+			) as distance_meters,
+			u.name as founding_user_username,
+			COALESCE(
+				(SELECT AVG(rating)::float8 FROM reviews r WHERE r.poi_id = points_of_interest.poi_id),
+				0
+			) as rating_avg,
+			(SELECT COUNT(*)::int FROM reviews r WHERE r.poi_id = points_of_interest.poi_id) as reviews_count
 		FROM points_of_interest
+		LEFT JOIN users u ON COALESCE(points_of_interest.founding_user_id, points_of_interest.created_by) = u.user_id
 		WHERE location IS NOT NULL
 		  AND ST_DWithin(
 			location,

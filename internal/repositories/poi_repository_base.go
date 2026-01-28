@@ -94,7 +94,10 @@ type POI struct {
 	WifiVerifiedAt       *time.Time `db:"wifi_verified_at" json:"wifi_verified_at,omitempty"`
 	ErgonomicSeating     bool       `db:"ergonomic_seating" json:"ergonomic_seating"`
 	PowerSocketsReach    *string    `db:"power_sockets_reach" json:"power_sockets_reach,omitempty"`
-	FoundingUserUsername *string    `db:"founding_user_username" json:"founding_user_username,omitempty"`
+	FoundingUserUsername *string    `db:"founding_user_username" json:"founding_user_username"`
+	RatingAvg            float64    `db:"rating_avg" json:"rating_avg"`
+	ReviewsCount         int        `db:"reviews_count" json:"reviews_count"`
+	SavedAt              *time.Time `db:"saved_at" json:"saved_at,omitempty"`
 }
 
 // POIWithDistance represents a POI with distance from a point

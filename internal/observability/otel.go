@@ -23,6 +23,10 @@ func InitOTel(ctx context.Context, serviceName string) (func(context.Context) er
 	// Default to stdout for development if OTLP is not configured
 	otlpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if otlpEndpoint == "" {
+		// By default, disable stdout logs to keep terminal clean
+		if os.Getenv("ENABLE_OTEL_LOGS") != "true" {
+			return func(context.Context) error { return nil }, nil
+		}
 		exporter, err = stdouttrace.New(stdouttrace.WithPrettyPrint())
 		if err != nil {
 			return nil, fmt.Errorf("failed to create stdout exporter: %w", err)

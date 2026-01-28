@@ -4,20 +4,30 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+
+	"github.com/lmittmann/tint"
 )
 
-// Init initializes the global logger with JSON format and base fields
+// Init initializes the global logger
 func Init(service string, env string, level slog.Level) *slog.Logger {
-	opts := &slog.HandlerOptions{
-		Level:     level,
-		AddSource: true,
-	}
+	var handler slog.Handler
 
-	handler := slog.NewJSONHandler(os.Stdout, opts).
-		WithAttrs([]slog.Attr{
-			slog.String("service", service),
-			slog.String("env", env),
+	if env == "production" {
+		opts := &slog.HandlerOptions{
+			Level:     level,
+			AddSource: true,
+		}
+		handler = slog.NewJSONHandler(os.Stdout, opts).
+			WithAttrs([]slog.Attr{
+				slog.String("service", service),
+				slog.String("env", env),
+			})
+	} else {
+		handler = tint.NewHandler(os.Stderr, &tint.Options{
+			Level:      level,
+			TimeFormat: "15:04:05",
 		})
+	}
 
 	logger := slog.New(handler)
 	slog.SetDefault(logger)

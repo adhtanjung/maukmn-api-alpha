@@ -25,10 +25,16 @@ func Setup(db *database.DB) *gin.Engine {
 	poiRepo := repositories.NewPOIRepository(db)
 
 	// Initialize services
+	// Services
 	geocodingService := services.NewMockGeocodingService()
 
 	// Initialize handlers
 	poiHandler := handlers.NewPOIHandler(poiRepo, geocodingService)
+	savedPOIRepo := repositories.NewSavedPOIRepository(db)
+	savedPOIHandler := handlers.NewSavedPOIHandler(savedPOIRepo)
+
+	commentRepo := repositories.NewCommentRepository(db)
+	commentHandler := handlers.NewCommentHandler(commentRepo)
 	categoryHandler := handlers.NewCategoryHandler(db)
 	vocabHandler := handlers.NewVocabularyHandler(db)
 	authHandler := handlers.NewAuthHandler(db)
@@ -64,6 +70,7 @@ func Setup(db *database.DB) *gin.Engine {
 			pois.GET("/nearby", poiHandler.GetNearbyPOIs)
 			pois.GET("/filter-options", poiHandler.GetFilterOptions)
 			pois.GET("/:id", poiHandler.GetPOI)
+			pois.GET("/:id/comments", commentHandler.GetCommentsByPOI) // Public read for comments
 
 			// Protected POI routes (require auth)
 			poisAuth := pois.Group("")
@@ -72,6 +79,11 @@ func Setup(db *database.DB) *gin.Engine {
 				poisAuth.POST("", poiHandler.CreatePOI)
 				poisAuth.GET("/my", poiHandler.GetMyPOIs)
 				poisAuth.PUT("/:id", poiHandler.UpdatePOI)
+				poisAuth.POST("/:id/save", savedPOIHandler.ToggleSave)
+				poisAuth.GET("/saved", savedPOIHandler.GetMySavedPOIs)
+
+				// Comments
+				poisAuth.POST("/:id/comments", commentHandler.CreateComment)
 				poisAuth.DELETE("/:id", poiHandler.DeletePOI)
 				poisAuth.GET("/my-drafts", poiHandler.GetMyDrafts)
 				poisAuth.POST("/:id/submit", poiHandler.SubmitPOI)
@@ -79,6 +91,9 @@ func Setup(db *database.DB) *gin.Engine {
 				poisAuth.POST("/:id/reject", poiHandler.RejectPOI)
 				poisAuth.GET("/pending", poiHandler.GetPendingPOIs)
 				poisAuth.GET("/admin-list", poiHandler.GetAdminPOIs)
+
+				// Debug/Admin routes (if needed)
+				// r.GET("/api/v1/pois/:id/saved-users", savedPOIHandler.GetUsersWhoSavedPOI)
 
 				// Section-based editing
 				sectionHandler := handlers.NewPOISectionHandler(poiRepo)
@@ -121,6 +136,9 @@ func Setup(db *database.DB) *gin.Engine {
 
 		// Category routes
 		v1.GET("/categories", categoryHandler.GetCategories)
+
+		// Saved POI list route
+		v1.GET("/me/saved-pois", handlers.AuthMiddleware(db), savedPOIHandler.GetMySavedPOIs)
 
 		// Vocabulary routes
 		v1.GET("/vocabularies", vocabHandler.GetVocabularies)

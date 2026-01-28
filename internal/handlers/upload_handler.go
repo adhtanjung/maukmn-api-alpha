@@ -128,11 +128,12 @@ func (h *UploadHandler) GetPresignedURL(c *gin.Context) {
 	}
 
 	// Get user ID from context
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
+	userID := userIDVal.(uuid.UUID)
 
 	// Generate unique upload key
 	// Format: uploads/tmp/{user_id}/{timestamp}_{uuid}.{ext}
@@ -164,7 +165,7 @@ func (h *UploadHandler) GetPresignedURL(c *gin.Context) {
 
 	uploadID := uuid.New()
 	key := fmt.Sprintf("uploads/tmp/%s/%s/%d_%s%s",
-		userID.(uuid.UUID).String(),
+		userID.String(),
 		category,
 		time.Now().Unix(),
 		uploadID.String()[:8],
@@ -204,14 +205,15 @@ func (h *UploadHandler) FinalizeUpload(c *gin.Context) {
 	}
 
 	// Get user ID from context
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
+	userID := userIDVal.(uuid.UUID)
 
 	// Verify the upload key belongs to this user
-	expectedPrefix := fmt.Sprintf("uploads/tmp/%s/", userID.(uuid.UUID).String())
+	expectedPrefix := fmt.Sprintf("uploads/tmp/%s/", userID.String())
 	if !strings.HasPrefix(req.UploadKey, expectedPrefix) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "not authorized for this upload"})
 		return
@@ -223,7 +225,7 @@ func (h *UploadHandler) FinalizeUpload(c *gin.Context) {
 	}
 
 	// Queue for async processing
-	jobID, err := h.imagingService.QueueProcessing(req.UploadKey, category, userID.(uuid.UUID))
+	jobID, err := h.imagingService.QueueProcessing(req.UploadKey, category, userID)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "processing queue is full, try again later"})
 		return
@@ -332,14 +334,15 @@ func (h *UploadHandler) DeleteUpload(c *gin.Context) {
 	}
 
 	// Verify user owns this file (key starts with their user ID)
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
+	userID := userIDVal.(uuid.UUID)
 
-	expectedPrefix := fmt.Sprintf("uploads/%s/", userID.(uuid.UUID).String())
-	tmpPrefix := fmt.Sprintf("uploads/tmp/%s/", userID.(uuid.UUID).String())
+	expectedPrefix := fmt.Sprintf("uploads/%s/", userID.String())
+	tmpPrefix := fmt.Sprintf("uploads/tmp/%s/", userID.String())
 	if !strings.HasPrefix(key, expectedPrefix) && !strings.HasPrefix(key, tmpPrefix) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "not authorized to delete this file"})
 		return

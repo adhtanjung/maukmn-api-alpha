@@ -436,7 +436,7 @@ func (h *POIHandler) UpdatePOI(c *gin.Context) {
 	}
 
 	// Get user info from context
-	userID, userIDExists := c.Get("user_id")
+	userIDVal, userIDExists := c.Get("user_id")
 	role, _ := c.Get("user_role")
 	isAdmin := role == "admin"
 
@@ -444,7 +444,9 @@ func (h *POIHandler) UpdatePOI(c *gin.Context) {
 	// Special case: if created_by is NULL (orphan POI), allow any authenticated user to claim it
 	isOwner := false
 	if poi.CreatedBy != nil && userIDExists {
-		isOwner = *poi.CreatedBy == userID.(uuid.UUID)
+		if uid, ok := userIDVal.(uuid.UUID); ok {
+			isOwner = *poi.CreatedBy == uid
+		}
 	}
 
 	// If POI has no owner (created_by is null), allow any authenticated user to edit
@@ -544,16 +546,17 @@ func (h *POIHandler) GetMyPOIs(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	// Get user from context
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		utils.SendError(c, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
+	userID := userIDVal.(uuid.UUID)
 
 	page, limit := utils.GetPagination(c)
 	offset := utils.GetOffset(page, limit)
 
-	pois, total, err := h.repo.GetByUser(ctx, userID.(uuid.UUID), limit, offset)
+	pois, total, err := h.repo.GetByUser(ctx, userID, limit, offset)
 	if err != nil {
 		utils.SendInternalError(c, err)
 		return
