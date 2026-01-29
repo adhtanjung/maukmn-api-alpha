@@ -10,9 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"maukemana-backend/internal/database"
 	"maukemana-backend/internal/imaging"
-	"maukemana-backend/internal/repositories"
 	"maukemana-backend/internal/storage"
 	"maukemana-backend/internal/utils"
 )
@@ -24,13 +22,8 @@ type UploadHandler struct {
 }
 
 // NewUploadHandler creates a new upload handler
-func NewUploadHandler(r2 *storage.R2Client, db *database.DB) *UploadHandler {
-	// Initialize repository
-	repo := repositories.NewImagingRepository(db)
-
-	// Create imaging service with 4 workers
-	imagingService := imaging.NewService(r2, repo, 4)
-
+// NewUploadHandler creates a new upload handler
+func NewUploadHandler(r2 *storage.R2Client, imagingService *imaging.Service) *UploadHandler {
 	return &UploadHandler{
 		r2:             r2,
 		imagingService: imagingService,

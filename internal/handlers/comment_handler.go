@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"maukemana-backend/internal/models"
-	"maukemana-backend/internal/repositories"
 	"net/http"
 	"strconv"
 
@@ -11,11 +11,18 @@ import (
 	"github.com/google/uuid"
 )
 
-type CommentHandler struct {
-	commentRepo *repositories.CommentRepository
+type CommentRepository interface {
+	Create(ctx context.Context, comment *models.Comment) error
+	GetByPOI(ctx context.Context, poiID uuid.UUID, limit, offset int) ([]models.Comment, error)
+	GetReplies(ctx context.Context, parentID uuid.UUID) ([]models.Comment, error)
+	Delete(ctx context.Context, commentID uuid.UUID, userID uuid.UUID) error
 }
 
-func NewCommentHandler(commentRepo *repositories.CommentRepository) *CommentHandler {
+type CommentHandler struct {
+	commentRepo CommentRepository
+}
+
+func NewCommentHandler(commentRepo CommentRepository) *CommentHandler {
 	return &CommentHandler{commentRepo: commentRepo}
 }
 

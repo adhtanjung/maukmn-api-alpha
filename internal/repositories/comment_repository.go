@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maukemana-backend/internal/database"
 	"maukemana-backend/internal/models"
 
@@ -25,12 +26,15 @@ func (r *CommentRepository) Create(ctx context.Context, comment *models.Comment)
 	`
 	rows, err := r.db.NamedQueryContext(ctx, query, comment)
 	if err != nil {
-		return err
+		return fmt.Errorf("create comment: %w", err)
 	}
 	defer rows.Close()
 
 	if rows.Next() {
-		return rows.Scan(&comment.CommentID, &comment.CreatedAt, &comment.UpdatedAt)
+		if err := rows.Scan(&comment.CommentID, &comment.CreatedAt, &comment.UpdatedAt); err != nil {
+			return fmt.Errorf("scan comment: %w", err)
+		}
+		return nil
 	}
 	return nil
 }
@@ -51,7 +55,7 @@ func (r *CommentRepository) GetByPOI(ctx context.Context, poiID uuid.UUID, limit
 	var comments []models.Comment
 	err := r.db.SelectContext(ctx, &comments, query, poiID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get comments by poi: %w", err)
 	}
 	return comments, nil
 }
@@ -71,7 +75,7 @@ func (r *CommentRepository) GetReplies(ctx context.Context, parentID uuid.UUID) 
 	var comments []models.Comment
 	err := r.db.SelectContext(ctx, &comments, query, parentID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get replies: %w", err)
 	}
 	return comments, nil
 }
@@ -80,11 +84,11 @@ func (r *CommentRepository) Delete(ctx context.Context, commentID uuid.UUID, use
 	query := `DELETE FROM comments WHERE comment_id = $1 AND user_id = $2`
 	result, err := r.db.ExecContext(ctx, query, commentID, userID)
 	if err != nil {
-		return err
+		return fmt.Errorf("delete comment: %w", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("delete comment rows affected: %w", err)
 	}
 	if rows == 0 {
 		return errors.New("not found")

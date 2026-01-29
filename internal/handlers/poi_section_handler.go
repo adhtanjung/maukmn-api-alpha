@@ -13,13 +13,26 @@ import (
 	"github.com/google/uuid"
 )
 
+// POISectionRepository defines the interface for POI section data access
+type POISectionRepository interface {
+	GetByID(ctx context.Context, id uuid.UUID) (*repositories.POI, error)
+	UpdateProfile(ctx context.Context, poiID uuid.UUID, input repositories.CreatePOIInput) error
+	UpdateLocation(ctx context.Context, poiID uuid.UUID, input repositories.CreatePOIInput) error
+	UpdateOperations(ctx context.Context, poiID uuid.UUID, input repositories.CreatePOIInput) error
+	UpdateWorkProd(ctx context.Context, poiID uuid.UUID, input repositories.CreatePOIInput) error
+	UpdateAtmosphere(ctx context.Context, poiID uuid.UUID, input repositories.CreatePOIInput) error
+	UpdateFoodDrink(ctx context.Context, poiID uuid.UUID, input repositories.CreatePOIInput) error
+	UpdateSocial(ctx context.Context, poiID uuid.UUID, input repositories.CreatePOIInput) error
+	UpdateContact(ctx context.Context, poiID uuid.UUID, input repositories.CreatePOIInput) error
+}
+
 // POISectionHandler handles requests for specific POI sections
 type POISectionHandler struct {
-	repo *repositories.POIRepository
+	repo POISectionRepository
 }
 
 // NewPOISectionHandler creates a new POISectionHandler
-func NewPOISectionHandler(repo *repositories.POIRepository) *POISectionHandler {
+func NewPOISectionHandler(repo POISectionRepository) *POISectionHandler {
 	return &POISectionHandler{repo: repo}
 }
 

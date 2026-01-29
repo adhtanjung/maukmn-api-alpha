@@ -24,6 +24,24 @@ func (r *POIRepository) Search(ctx context.Context, filters map[string]interface
 		       p.is_wheelchair_accessible, p.has_delivery, p.cuisine, p.price_range,
 		       p.food_options, p.payment_options, p.kids_friendly, p.smoker_friendly,
 		       p.pet_friendly, p.status, p.cover_image_url, p.gallery_image_urls,
+		       (
+		           SELECT COALESCE(json_agg(
+		               json_build_object(
+		                   'photo_id', ph.photo_id,
+		                   'poi_id', ph.poi_id,
+		                   'url', ph.url,
+		                   'is_hero', ph.is_hero,
+		                   'score', ph.score,
+		                   'upvotes', ph.upvotes,
+		                   'downvotes', ph.downvotes,
+		                   'is_pinned', ph.is_pinned,
+		                   'is_admin_official', ph.is_admin_official,
+		                   'created_at', ph.created_at
+		               ) ORDER BY ph.is_pinned DESC, ph.is_hero DESC, ph.score DESC
+		           ), '[]'::json)
+		           FROM photos ph
+		           WHERE ph.poi_id = p.poi_id
+		       ) as gallery_images,
 		       p.is_verified, p.verified_at, p.created_at, p.updated_at,
 		       p.wifi_quality, p.power_outlets, p.noise_level, p.vibes, p.crowd_type,
 		       p.seating_options, p.parking_options, p.has_ac, p.dietary_options,
@@ -188,7 +206,7 @@ func (r *POIRepository) Search(ctx context.Context, filters map[string]interface
 
 	err := r.db.SelectContext(ctx, &pois, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("search pois: %w", err)
 	}
 
 	return pois, nil
@@ -204,6 +222,24 @@ func (r *POIRepository) GetByID(ctx context.Context, poiID uuid.UUID) (*POI, err
 		       food_options, payment_options, kids_friendly, smoker_friendly,
 		       pet_friendly, points_of_interest.status, is_verified, verified_at, points_of_interest.created_at, points_of_interest.updated_at, points_of_interest.created_by,
 		       floor_unit, public_transport, cover_image_url, gallery_image_urls,
+		       (
+		           SELECT COALESCE(json_agg(
+		               json_build_object(
+		                   'photo_id', ph.photo_id,
+		                   'poi_id', ph.poi_id,
+		                   'url', ph.url,
+		                   'is_hero', ph.is_hero,
+		                   'score', ph.score,
+		                   'upvotes', ph.upvotes,
+		                   'downvotes', ph.downvotes,
+		                   'is_pinned', ph.is_pinned,
+		                   'is_admin_official', ph.is_admin_official,
+		                   'created_at', ph.created_at
+		               ) ORDER BY ph.is_pinned DESC, ph.is_hero DESC, ph.score DESC
+		           ), '[]'::json)
+		           FROM photos ph
+		           WHERE ph.poi_id = points_of_interest.poi_id
+		       ) as gallery_images,
 		       wifi_quality, power_outlets, seating_options, noise_level, has_ac,
 		       vibes, crowd_type, lighting, music_type, cleanliness, dietary_options,
 		       featured_menu_items, specials, open_hours, reservation_required,
@@ -232,7 +268,7 @@ func (r *POIRepository) GetByID(ctx context.Context, poiID uuid.UUID) (*POI, err
 
 	err := r.db.GetContext(ctx, &poi, query, poiID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get poi by id: %w", err)
 	}
 
 	return &poi, nil
@@ -250,6 +286,24 @@ func (r *POIRepository) GetNearby(ctx context.Context, lat, lng float64, radiusM
 			food_options, payment_options, kids_friendly, smoker_friendly,
 			pet_friendly, is_verified, verified_at, created_at, updated_at,
 			cover_image_url, gallery_image_urls, status,
+			(
+			   SELECT COALESCE(json_agg(
+				   json_build_object(
+					   'photo_id', ph.photo_id,
+					   'poi_id', ph.poi_id,
+					   'url', ph.url,
+					   'is_hero', ph.is_hero,
+					   'score', ph.score,
+					   'upvotes', ph.upvotes,
+					   'downvotes', ph.downvotes,
+					   'is_pinned', ph.is_pinned,
+					   'is_admin_official', ph.is_admin_official,
+					   'created_at', ph.created_at
+				   ) ORDER BY ph.is_pinned DESC, ph.is_hero DESC, ph.score DESC
+			   ), '[]'::json)
+			   FROM photos ph
+			   WHERE ph.poi_id = points_of_interest.poi_id
+			) as gallery_images,
 			founding_user_id, wifi_speed_mbps, wifi_verified_at, ergonomic_seating, power_sockets_reach,
 			ST_Y(location::geometry) as latitude,
 			ST_X(location::geometry) as longitude,
@@ -277,7 +331,7 @@ func (r *POIRepository) GetNearby(ctx context.Context, lat, lng float64, radiusM
 
 	err := r.db.SelectContext(ctx, &pois, query, lng, lat, radiusMeters, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get nearby pois: %w", err)
 	}
 
 	return pois, nil
@@ -288,7 +342,25 @@ func (r *POIRepository) GetByUser(ctx context.Context, userID uuid.UUID, limit, 
 	var pois []POI
 	query := `
 		SELECT poi_id, name, category_id, description, status, created_by,
-		       cover_image_url, has_wifi, outdoor_seating, price_range, created_at, updated_at
+		       cover_image_url, has_wifi, outdoor_seating, price_range, created_at, updated_at,
+			   (
+			   SELECT COALESCE(json_agg(
+				   json_build_object(
+					   'photo_id', ph.photo_id,
+					   'poi_id', ph.poi_id,
+					   'url', ph.url,
+					   'is_hero', ph.is_hero,
+					   'score', ph.score,
+					   'upvotes', ph.upvotes,
+					   'downvotes', ph.downvotes,
+					   'is_pinned', ph.is_pinned,
+					   'is_admin_official', ph.is_admin_official,
+					   'created_at', ph.created_at
+				   ) ORDER BY ph.is_pinned DESC, ph.is_hero DESC, ph.score DESC
+			   ), '[]'::json)
+			   FROM photos ph
+			   WHERE ph.poi_id = points_of_interest.poi_id
+			) as gallery_images
 		FROM points_of_interest
 		WHERE created_by = $1
 		ORDER BY updated_at DESC
@@ -297,7 +369,7 @@ func (r *POIRepository) GetByUser(ctx context.Context, userID uuid.UUID, limit, 
 
 	err := r.db.SelectContext(ctx, &pois, query, userID, limit, offset)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("get pois by user: %w", err)
 	}
 
 	// Get total count
@@ -305,7 +377,7 @@ func (r *POIRepository) GetByUser(ctx context.Context, userID uuid.UUID, limit, 
 	countQuery := `SELECT COUNT(*) FROM points_of_interest WHERE created_by = $1`
 	err = r.db.GetContext(ctx, &total, countQuery, userID)
 	if err != nil {
-		return pois, 0, err
+		return pois, 0, fmt.Errorf("count pois by user: %w", err)
 	}
 
 	return pois, total, nil
@@ -313,7 +385,7 @@ func (r *POIRepository) GetByUser(ctx context.Context, userID uuid.UUID, limit, 
 
 // GetWithHeroImages retrieves POIs from the materialized view
 func (r *POIRepository) GetWithHeroImages(ctx context.Context, limit, offset int) ([]map[string]interface{}, error) {
-	var pois []map[string]interface{}
+	pois := make([]map[string]interface{}, 0, limit)
 
 	query := `
 		SELECT * FROM mv_pois_with_hero
@@ -323,14 +395,14 @@ func (r *POIRepository) GetWithHeroImages(ctx context.Context, limit, offset int
 
 	rows, err := r.db.QueryxContext(ctx, query, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query with hero images: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		poi := make(map[string]interface{})
 		if err := rows.MapScan(poi); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("map scan with hero images: %w", err)
 		}
 		pois = append(pois, poi)
 	}

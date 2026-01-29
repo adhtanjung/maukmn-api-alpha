@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"maukemana-backend/internal/logger"
 	"maukemana-backend/internal/repositories"
 	"net/http"
@@ -10,11 +11,18 @@ import (
 	"github.com/google/uuid"
 )
 
-type SavedPOIHandler struct {
-	repo *repositories.SavedPOIRepository
+type SavedPOIRepository interface {
+	SavePOI(ctx context.Context, userID, poiID uuid.UUID) error
+	UnsavePOI(ctx context.Context, userID, poiID uuid.UUID) error
+	GetSavedPOIs(ctx context.Context, userID uuid.UUID, limit, offset int) ([]repositories.POI, error)
+	IsSaved(ctx context.Context, userID, poiID uuid.UUID) (bool, error)
 }
 
-func NewSavedPOIHandler(repo *repositories.SavedPOIRepository) *SavedPOIHandler {
+type SavedPOIHandler struct {
+	repo SavedPOIRepository
+}
+
+func NewSavedPOIHandler(repo SavedPOIRepository) *SavedPOIHandler {
 	return &SavedPOIHandler{repo: repo}
 }
 

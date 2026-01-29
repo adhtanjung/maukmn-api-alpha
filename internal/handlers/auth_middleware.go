@@ -1,8 +1,8 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -10,24 +10,32 @@ import (
 	"github.com/google/uuid"
 
 	"maukemana-backend/internal/auth"
-	"maukemana-backend/internal/database"
+	"maukemana-backend/internal/repositories"
 	"maukemana-backend/internal/utils"
 )
 
+// UserRepository defines the interface for user data access
+type UserRepository interface {
+	GetByClerkID(ctx context.Context, clerkID string) (*repositories.User, error)
+	GetByEmail(ctx context.Context, email string) (*repositories.User, error)
+	UpdateClerkID(ctx context.Context, userID uuid.UUID, clerkID string) error
+	Create(ctx context.Context, email, name, picture, clerkID, role string) (*repositories.User, error)
+}
+
 // AuthHandler handles authentication routes (Clerk integration mostly happens in middleware)
 type AuthHandler struct {
-	db *database.DB
+	repo UserRepository
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(db *database.DB) *AuthHandler {
+func NewAuthHandler(repo UserRepository) *AuthHandler {
 	return &AuthHandler{
-		db: db,
+		repo: repo,
 	}
 }
 
 // AuthMiddleware validates Clerk token and syncs user to DB
-func AuthMiddleware(db *database.DB) gin.HandlerFunc {
+func AuthMiddleware(repo UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -51,26 +59,19 @@ func AuthMiddleware(db *database.DB) gin.HandlerFunc {
 		// Lazy Sync
 		clerkID := claims.Subject
 		var userEmail string
-		// Basic way to get email from claims if Clerk provides it in session claims,
-		// otherwise might need to fetch user.
-		// For now, assuming email is not always in initial claims, we might need to fetch user from Clerk if creating.
-		// NOTE: Session claims usually don't have email unless customized.
-		// We'll rely on checking DB by ClerkID first.
-
 		var userID uuid.UUID
 		var displayName sql.NullString
 		var dbRole sql.NullString
 
 		// 1. Check if user exists by Clerk ID -- AND fetch role
-		err = db.QueryRowContext(c.Request.Context(),
-			"SELECT user_id, email, name, role FROM users WHERE clerk_id = $1",
-			clerkID,
-		).Scan(&userID, &userEmail, &displayName, &dbRole)
-		fmt.Println("DEBUG: User found by Clerk ID:", userID, "err:", err)
+		user, err := repo.GetByClerkID(c.Request.Context(), clerkID)
 
 		if err == nil {
-			// Found user in DB. userEmail, displayName, role are set.
-			// Proceed to common logic.
+			// Found user in DB
+			userID = user.UserID
+			userEmail = user.Email
+			displayName = user.Name
+			dbRole = user.Role
 		} else if err == sql.ErrNoRows {
 			// 2. User NOT found by Clerk ID. We need to sync.
 			clerkUser, err := auth.GetUser(clerkID)
@@ -96,20 +97,23 @@ func AuthMiddleware(db *database.DB) gin.HandlerFunc {
 			displayName = sql.NullString{String: name, Valid: name != ""}
 
 			// 3. Check if user exists by Email (Migrate legacy user)
-			err = db.QueryRowContext(c.Request.Context(),
-				"SELECT user_id FROM users WHERE email = $1",
-				primaryEmail,
-			).Scan(&userID)
+			legacyUser, err := repo.GetByEmail(c.Request.Context(), primaryEmail)
 
 			if err == nil {
 				// Legacy user found, update with clerk_id
-				_, err = db.ExecContext(c.Request.Context(),
-					"UPDATE users SET clerk_id = $1 WHERE user_id = $2",
-					clerkID, userID,
-				)
+				userID = legacyUser.UserID
+				err = repo.UpdateClerkID(c.Request.Context(), userID, clerkID)
 				if err != nil {
 					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to update legacy user"})
 					return
+				}
+				// Also fetch role/name if needed, but assuming legacy user has them.
+				// For now taking from legacyUser if we want, or just proceed.
+				// The original code didn't re-fetch legacy user details other than ID.
+				// But we need 'dbRole' for context.
+				dbRole = legacyUser.Role
+				if legacyUser.Name.Valid {
+					displayName = legacyUser.Name
 				}
 			} else if err == sql.ErrNoRows {
 				// 4. Create new user
@@ -118,17 +122,13 @@ func AuthMiddleware(db *database.DB) gin.HandlerFunc {
 					picture = *clerkUser.ImageURL
 				}
 
-				err = db.QueryRowContext(c.Request.Context(),
-					`INSERT INTO users (email, name, picture_url, clerk_id, role)
-					 VALUES ($1, $2, $3, $4, 'user')
-					 RETURNING user_id`,
-					primaryEmail, name, picture, clerkID,
-				).Scan(&userID)
-
+				newUser, err := repo.Create(c.Request.Context(), primaryEmail, name, picture, clerkID, "user")
 				if err != nil {
 					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 					return
 				}
+				userID = newUser.UserID
+				dbRole = newUser.Role
 			} else {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 				return
@@ -153,7 +153,6 @@ func AuthMiddleware(db *database.DB) gin.HandlerFunc {
 		c.Set("email", userEmail)
 		c.Set("display_name", finalDisplayName)
 		c.Set("user_role", finalRole)
-		// fmt.Printf("DEBUG: Final Role in Context: '%s'\n", finalRole)
 
 		c.Next()
 	}

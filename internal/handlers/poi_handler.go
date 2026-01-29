@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,14 +15,28 @@ import (
 	"maukemana-backend/internal/utils"
 )
 
+// POIRepository defines the interface for POI data access
+type POIRepository interface {
+	Search(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]repositories.POI, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*repositories.POI, error)
+	Create(ctx context.Context, input repositories.CreatePOIInput) (*repositories.POI, error)
+	UpdateFull(ctx context.Context, id uuid.UUID, input repositories.UpdateFullInput) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	GetByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]repositories.POI, int, error)
+	GetNearby(ctx context.Context, lat, lng float64, radius, limit int) ([]repositories.POIWithDistance, error)
+	UpdateStatus(ctx context.Context, id uuid.UUID, status string, reason *string) error
+	GetByUserAndStatus(ctx context.Context, userID uuid.UUID, status string, limit, offset int) ([]repositories.POI, error)
+	GetByStatus(ctx context.Context, status string, limit, offset int) ([]repositories.POI, error)
+}
+
 // POIHandler handles POI-related HTTP requests
 type POIHandler struct {
-	repo             *repositories.POIRepository
+	repo             POIRepository
 	geocodingService services.GeocodingService
 }
 
 // NewPOIHandler creates a new POI handler
-func NewPOIHandler(repo *repositories.POIRepository, geocodingService services.GeocodingService) *POIHandler {
+func NewPOIHandler(repo POIRepository, geocodingService services.GeocodingService) *POIHandler {
 	return &POIHandler{
 		repo:             repo,
 		geocodingService: geocodingService,

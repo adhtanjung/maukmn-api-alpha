@@ -3,9 +3,11 @@ package repositories
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"maukemana-backend/internal/database"
+	"maukemana-backend/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -19,6 +21,22 @@ type POIRepository struct {
 // NewPOIRepository creates a new POI repository
 func NewPOIRepository(db *database.DB) *POIRepository {
 	return &POIRepository{db: db}
+}
+
+// PhotosJSON handles JSON scanning for photos
+type PhotosJSON []models.Photo
+
+// Scan implements the sql.Scanner interface
+func (p *PhotosJSON) Scan(value interface{}) error {
+	if value == nil {
+		*p = []models.Photo{}
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("failed to unmarshal JSONB value: %v", value)
+	}
+	return json.Unmarshal(bytes, p)
 }
 
 // POI represents a Point of Interest from the database
@@ -51,6 +69,7 @@ type POI struct {
 	PublicTransport     *string          `db:"public_transport" json:"public_transport,omitempty"`
 	CoverImageURL       *string          `db:"cover_image_url" json:"cover_image_url,omitempty"`
 	GalleryImageURLs    pq.StringArray   `db:"gallery_image_urls" json:"gallery_image_urls,omitempty"`
+	GalleryImages       PhotosJSON       `db:"gallery_images" json:"gallery_images,omitempty"`
 	WifiQuality         *string          `db:"wifi_quality" json:"wifi_quality,omitempty"`
 	PowerOutlets        *string          `db:"power_outlets" json:"power_outlets,omitempty"`
 	SeatingOptions      pq.StringArray   `db:"seating_options" json:"seating_options,omitempty"`
@@ -272,14 +291,17 @@ func (r *POIRepository) UpdateProfile(ctx context.Context, poiID uuid.UUID, inpu
 		WHERE poi_id = $1
 	`
 	_, err := r.db.ExecContext(ctx, query, poiID, input.Name, input.BrandName, input.Description, input.CoverImageURL, pq.StringArray(input.GalleryImageURLs), pq.StringArray(input.Categories))
-	return err
+	if err != nil {
+		return fmt.Errorf("update profile: %w", err)
+	}
+	return nil
 }
 
 // UpdateLocation updates location specific fields
 func (r *POIRepository) UpdateLocation(ctx context.Context, poiID uuid.UUID, input CreatePOIInput) error {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("update location begin tx: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -290,7 +312,7 @@ func (r *POIRepository) UpdateLocation(ctx context.Context, poiID uuid.UUID, inp
 	var existingAddressID *uuid.UUID
 	err = tx.QueryRowContext(ctx, "SELECT address_id FROM points_of_interest WHERE poi_id = $1", poiID).Scan(&existingAddressID)
 	if err != nil {
-		return err
+		return fmt.Errorf("update location check address: %w", err)
 	}
 
 	if input.Address != nil && *input.Address != "" {
@@ -298,7 +320,7 @@ func (r *POIRepository) UpdateLocation(ctx context.Context, poiID uuid.UUID, inp
 			// Update existing address
 			_, err = tx.ExecContext(ctx, "UPDATE addresses SET street_address = $1 WHERE address_id = $2", *input.Address, existingAddressID)
 			if err != nil {
-				return err
+				return fmt.Errorf("update address: %w", err)
 			}
 			addressID = existingAddressID
 		} else {
@@ -306,7 +328,7 @@ func (r *POIRepository) UpdateLocation(ctx context.Context, poiID uuid.UUID, inp
 			var newAddrID uuid.UUID
 			err = tx.QueryRowContext(ctx, "INSERT INTO addresses (street_address) VALUES ($1) RETURNING address_id", *input.Address).Scan(&newAddrID)
 			if err != nil {
-				return err
+				return fmt.Errorf("insert address: %w", err)
 			}
 			addressID = &newAddrID
 		}
@@ -327,10 +349,14 @@ func (r *POIRepository) UpdateLocation(ctx context.Context, poiID uuid.UUID, inp
 	`
 	_, err = tx.ExecContext(ctx, query, poiID, input.Longitude, input.Latitude, input.FloorUnit, input.PublicTransport, pq.StringArray(input.ParkingOptions), input.WheelchairAccessible, addressID)
 	if err != nil {
-		return err
+		return fmt.Errorf("update location update poi: %w", err)
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("update location commit: %w", err)
+	}
+
+	return nil
 }
 
 // UpdateOperations updates operational fields
@@ -344,7 +370,10 @@ func (r *POIRepository) UpdateOperations(ctx context.Context, poiID uuid.UUID, i
 		WHERE poi_id = $6
 	`
 	_, err := r.db.ExecContext(ctx, query, openHoursJSON, input.ReservationRequired, input.ReservationPlatform, pq.StringArray(input.PaymentOptions), input.WaitTimeEstimate, poiID)
-	return err
+	if err != nil {
+		return fmt.Errorf("update operations: %w", err)
+	}
+	return nil
 }
 
 // UpdateWorkProd updates work and productivity fields
@@ -357,7 +386,10 @@ func (r *POIRepository) UpdateWorkProd(ctx context.Context, poiID uuid.UUID, inp
 		WHERE poi_id = $6
 	`
 	_, err := r.db.ExecContext(ctx, query, input.WifiQuality, input.PowerOutlets, pq.StringArray(input.SeatingOptions), input.NoiseLevel, input.HasAC, poiID)
-	return err
+	if err != nil {
+		return fmt.Errorf("update work prod: %w", err)
+	}
+	return nil
 }
 
 // UpdateAtmosphere updates atmosphere fields
@@ -370,7 +402,10 @@ func (r *POIRepository) UpdateAtmosphere(ctx context.Context, poiID uuid.UUID, i
 		WHERE poi_id = $6
 	`
 	_, err := r.db.ExecContext(ctx, query, pq.StringArray(input.Vibes), pq.StringArray(input.CrowdType), input.Lighting, input.MusicType, input.Cleanliness, poiID)
-	return err
+	if err != nil {
+		return fmt.Errorf("update atmosphere: %w", err)
+	}
+	return nil
 }
 
 // UpdateFoodDrink updates food and drink fields
@@ -384,7 +419,10 @@ func (r *POIRepository) UpdateFoodDrink(ctx context.Context, poiID uuid.UUID, in
 	`
 	// Note: mapping DietaryOptions to food_options column
 	_, err := r.db.ExecContext(ctx, query, input.Cuisine, input.PriceRange, pq.StringArray(input.DietaryOptions), pq.StringArray(input.FeaturedItems), pq.StringArray(input.Specials), poiID)
-	return err
+	if err != nil {
+		return fmt.Errorf("update food drink: %w", err)
+	}
+	return nil
 }
 
 // UpdateSocial updates social and lifestyle fields
@@ -398,7 +436,10 @@ func (r *POIRepository) UpdateSocial(ctx context.Context, poiID uuid.UUID, input
 		WHERE poi_id = $7
 	`
 	_, err := r.db.ExecContext(ctx, query, input.KidsFriendly, pq.StringArray(input.PetFriendly), input.SmokerFriendly, input.HappyHourInfo, input.LoyaltyProgram, input.PetPolicy, poiID)
-	return err
+	if err != nil {
+		return fmt.Errorf("update social: %w", err)
+	}
+	return nil
 }
 
 // UpdateContact updates contact fields
@@ -412,7 +453,10 @@ func (r *POIRepository) UpdateContact(ctx context.Context, poiID uuid.UUID, inpu
 		WHERE poi_id = $5
 	`
 	_, err := r.db.ExecContext(ctx, query, input.Phone, input.Email, input.Website, socialLinksJSON, poiID)
-	return err
+	if err != nil {
+		return fmt.Errorf("update contact: %w", err)
+	}
+	return nil
 }
 func (r *POIRepository) GetByUserAndStatus(ctx context.Context, userID uuid.UUID, status string, limit, offset int) ([]POI, error) {
 	var pois []POI
@@ -427,7 +471,7 @@ func (r *POIRepository) GetByUserAndStatus(ctx context.Context, userID uuid.UUID
 
 	err := r.db.SelectContext(ctx, &pois, query, userID, status, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get user pois: %w", err)
 	}
 	return pois, nil
 }
@@ -446,7 +490,7 @@ func (r *POIRepository) GetByStatus(ctx context.Context, status string, limit, o
 
 	err := r.db.SelectContext(ctx, &pois, query, status, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get pois by status: %w", err)
 	}
 	return pois, nil
 }

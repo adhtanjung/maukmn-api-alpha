@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"maukemana-backend/internal/database"
@@ -32,7 +33,10 @@ func (r *ImagingRepository) CreateAsset(ctx context.Context, asset *imaging.Imag
 		asset.OriginalFormat, asset.OriginalSize, asset.HasAlpha, asset.Category,
 		asset.Status, asset.Version, asset.CreatedByUserID, asset.CreatedAt)
 
-	return err
+	if err != nil {
+		return fmt.Errorf("create asset: %w", err)
+	}
+	return nil
 }
 
 // UpdateAssetStatus updates the status of an asset
@@ -45,7 +49,10 @@ func (r *ImagingRepository) UpdateAssetStatus(ctx context.Context, id uuid.UUID,
 	}
 
 	_, err := r.db.ExecContext(ctx, query, status, errorMessage, processedAt, id)
-	return err
+	if err != nil {
+		return fmt.Errorf("update asset status: %w", err)
+	}
+	return nil
 }
 
 // GetAssetByHash retrieves an asset by its content hash
@@ -58,13 +65,13 @@ func (r *ImagingRepository) GetAssetByHash(ctx context.Context, hash string) (*i
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get asset by hash: %w", err)
 	}
 
 	// Load derivatives
 	derivatives, err := r.GetDerivatives(ctx, asset.ID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get derivatives for asset: %w", err)
 	}
 	asset.Derivatives = derivatives
 
@@ -81,13 +88,13 @@ func (r *ImagingRepository) GetAssetByID(ctx context.Context, id uuid.UUID) (*im
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get asset by id: %w", err)
 	}
 
 	// Load derivatives
 	derivatives, err := r.GetDerivatives(ctx, asset.ID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get derivatives for asset: %w", err)
 	}
 	asset.Derivatives = derivatives
 
@@ -104,7 +111,10 @@ func (r *ImagingRepository) CreateDerivative(ctx context.Context, d imaging.Deri
 	_, err := r.db.ExecContext(ctx, query,
 		d.ID, d.AssetID, d.RenditionName, d.Format, d.Width, d.Height, d.SizeBytes, d.StorageKey)
 
-	return err
+	if err != nil {
+		return fmt.Errorf("create derivative: %w", err)
+	}
+	return nil
 }
 
 // GetDerivatives retrieves all derivatives for an asset
@@ -113,7 +123,10 @@ func (r *ImagingRepository) GetDerivatives(ctx context.Context, assetID uuid.UUI
 	query := `SELECT id, asset_id, rendition_name, format, width, height, size_bytes, storage_key FROM image_derivatives WHERE asset_id = $1`
 
 	err := r.db.SelectContext(ctx, &derivatives, query, assetID)
-	return derivatives, err
+	if err != nil {
+		return nil, fmt.Errorf("get derivatives: %w", err)
+	}
+	return derivatives, nil
 }
 
 // CreateJob inserts a new processing job
@@ -126,14 +139,20 @@ func (r *ImagingRepository) CreateJob(ctx context.Context, job *imaging.Processi
 	_, err := r.db.ExecContext(ctx, query,
 		job.ID, job.UploadKey, job.Category, job.UserID, imaging.StatusPending, job.CreatedAt, time.Now())
 
-	return err
+	if err != nil {
+		return fmt.Errorf("create job: %w", err)
+	}
+	return nil
 }
 
 // UpdateJob updates a job's status and metadata
 func (r *ImagingRepository) UpdateJob(ctx context.Context, id uuid.UUID, status imaging.ProcessingStatus, assetID *uuid.UUID, attempts int, lastError string) error {
 	query := `UPDATE image_processing_jobs SET status = $1, asset_id = $2, attempts = $3, last_error = $4, updated_at = $5 WHERE id = $6`
 	_, err := r.db.ExecContext(ctx, query, status, assetID, attempts, lastError, time.Now(), id)
-	return err
+	if err != nil {
+		return fmt.Errorf("update job: %w", err)
+	}
+	return nil
 }
 
 // GetPendingJobs retrieves all pending jobs
@@ -142,7 +161,10 @@ func (r *ImagingRepository) GetPendingJobs(ctx context.Context) ([]imaging.Proce
 	query := `SELECT id, upload_key, category, user_id, attempts, last_error, created_at FROM image_processing_jobs WHERE status = 'pending' ORDER BY created_at ASC`
 
 	err := r.db.SelectContext(ctx, &jobs, query)
-	return jobs, err
+	if err != nil {
+		return nil, fmt.Errorf("get pending jobs: %w", err)
+	}
+	return jobs, nil
 }
 
 // GetJobByID retrieves a specific processing job by its ID
@@ -154,5 +176,8 @@ func (r *ImagingRepository) GetJobByID(ctx context.Context, id uuid.UUID) (*imag
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
-	return &job, err
+	if err != nil {
+		return nil, fmt.Errorf("get job by id: %w", err)
+	}
+	return &job, nil
 }

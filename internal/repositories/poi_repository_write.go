@@ -13,7 +13,7 @@ import (
 func (r *POIRepository) Create(ctx context.Context, input CreatePOIInput) (*POI, error) {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -164,11 +164,11 @@ func (r *POIRepository) Create(ctx context.Context, input CreatePOIInput) (*POI,
 	).StructScan(&poi)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create poi query: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("commit tx: %w", err)
 	}
 
 	return &poi, nil
@@ -205,14 +205,20 @@ func (r *POIRepository) Update(ctx context.Context, poiID uuid.UUID, input Updat
 		amenities,
 	)
 
-	return err
+	if err != nil {
+		return fmt.Errorf("update poi: %w", err)
+	}
+	return nil
 }
 
 // Delete deletes a POI by ID
 func (r *POIRepository) Delete(ctx context.Context, poiID uuid.UUID) error {
 	query := `DELETE FROM points_of_interest WHERE poi_id = $1`
 	_, err := r.db.ExecContext(ctx, query, poiID)
-	return err
+	if err != nil {
+		return fmt.Errorf("delete poi: %w", err)
+	}
+	return nil
 }
 
 // UpdateFull updates all fields of a POI
@@ -311,7 +317,10 @@ func (r *POIRepository) UpdateFull(ctx context.Context, poiID uuid.UUID, input U
 		input.PowerSocketsReach,
 	)
 
-	return err
+	if err != nil {
+		return fmt.Errorf("update full poi: %w", err)
+	}
+	return nil
 }
 
 // UpdateStatus updates the status of a POI
@@ -331,5 +340,8 @@ func (r *POIRepository) UpdateStatus(ctx context.Context, poiID uuid.UUID, statu
 	}
 
 	_, err := r.db.ExecContext(ctx, query, args...)
-	return err
+	if err != nil {
+		return fmt.Errorf("update status: %w", err)
+	}
+	return nil
 }

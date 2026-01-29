@@ -13,6 +13,7 @@ import (
 	"maukemana-backend/internal/config"
 	"maukemana-backend/internal/database"
 	"maukemana-backend/internal/handlers"
+	"maukemana-backend/internal/imaging"
 	"maukemana-backend/internal/middleware"
 	"maukemana-backend/internal/repositories"
 	"maukemana-backend/internal/services"
@@ -24,7 +25,10 @@ func Setup(db *database.DB) *gin.Engine {
 	// Initialize repositories
 	poiRepo := repositories.NewPOIRepository(db)
 
-	// Initialize services
+	userRepo := repositories.NewUserRepository(db)
+	categoryRepo := repositories.NewCategoryRepository(db)
+	vocabRepo := repositories.NewVocabularyRepository(db)
+	photoRepo := repositories.NewPhotoRepository(db)
 	// Services
 	geocodingService := services.NewMockGeocodingService()
 
@@ -35,9 +39,10 @@ func Setup(db *database.DB) *gin.Engine {
 
 	commentRepo := repositories.NewCommentRepository(db)
 	commentHandler := handlers.NewCommentHandler(commentRepo)
-	categoryHandler := handlers.NewCategoryHandler(db)
-	vocabHandler := handlers.NewVocabularyHandler(db)
-	authHandler := handlers.NewAuthHandler(db)
+	categoryHandler := handlers.NewCategoryHandler(categoryRepo)
+	vocabHandler := handlers.NewVocabularyHandler(vocabRepo)
+	photoHandler := handlers.NewPhotoHandler(photoRepo)
+	authHandler := handlers.NewAuthHandler(userRepo)
 
 	// Initialize R2 storage (optional - continues without if not configured)
 	var uploadHandler *handlers.UploadHandler
@@ -45,7 +50,9 @@ func Setup(db *database.DB) *gin.Engine {
 	if err != nil {
 		log.Printf("Warning: R2 storage not configured: %v", err)
 	} else {
-		uploadHandler = handlers.NewUploadHandler(r2Client, db)
+		imagingRepo := repositories.NewImagingRepository(db)
+		imagingService := imaging.NewService(r2Client, imagingRepo, 4)
+		uploadHandler = handlers.NewUploadHandler(r2Client, imagingService)
 	}
 
 	// Initialize Clerk
@@ -58,7 +65,7 @@ func Setup(db *database.DB) *gin.Engine {
 	router.GET("/health", healthCheck(db))
 
 	// Auth routes
-	router.GET("/api/me", handlers.AuthMiddleware(db), authHandler.GetMe)
+	router.GET("/api/me", handlers.AuthMiddleware(userRepo), authHandler.GetMe)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -74,7 +81,7 @@ func Setup(db *database.DB) *gin.Engine {
 
 			// Protected POI routes (require auth)
 			poisAuth := pois.Group("")
-			poisAuth.Use(handlers.AuthMiddleware(db))
+			poisAuth.Use(handlers.AuthMiddleware(userRepo))
 			{
 				poisAuth.POST("", poiHandler.CreatePOI)
 				poisAuth.GET("/my", poiHandler.GetMyPOIs)
@@ -119,7 +126,7 @@ func Setup(db *database.DB) *gin.Engine {
 		// Upload routes (require auth)
 		if uploadHandler != nil {
 			uploads := v1.Group("/uploads")
-			uploads.Use(handlers.AuthMiddleware(db))
+			uploads.Use(handlers.AuthMiddleware(userRepo))
 			{
 				uploads.POST("/presign", uploadHandler.GetPresignedURL)
 				uploads.POST("/finalize", uploadHandler.FinalizeUpload)
@@ -128,17 +135,24 @@ func Setup(db *database.DB) *gin.Engine {
 
 			// Asset routes (require auth)
 			assets := v1.Group("/assets")
-			assets.Use(handlers.AuthMiddleware(db))
+			assets.Use(handlers.AuthMiddleware(userRepo))
 			{
 				assets.GET("/:id", uploadHandler.GetAssetStatus)
 			}
+		}
+
+		// Photo routes
+		photos := v1.Group("/photos")
+		photos.Use(handlers.AuthMiddleware(userRepo))
+		{
+			photos.POST("/:photo_id/vote", photoHandler.VotePhoto)
 		}
 
 		// Category routes
 		v1.GET("/categories", categoryHandler.GetCategories)
 
 		// Saved POI list route
-		v1.GET("/me/saved-pois", handlers.AuthMiddleware(db), savedPOIHandler.GetMySavedPOIs)
+		v1.GET("/me/saved-pois", handlers.AuthMiddleware(userRepo), savedPOIHandler.GetMySavedPOIs)
 
 		// Vocabulary routes
 		v1.GET("/vocabularies", vocabHandler.GetVocabularies)

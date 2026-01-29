@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 	"maukemana-backend/internal/database"
 	"time"
 
@@ -34,14 +35,20 @@ func (r *SavedPOIRepository) SavePOI(ctx context.Context, userID, poiID uuid.UUI
 		ON CONFLICT (user_id, poi_id) DO NOTHING
 	`
 	_, err := r.db.ExecContext(ctx, query, userID, poiID, time.Now())
-	return err
+	if err != nil {
+		return fmt.Errorf("save poi: %w", err)
+	}
+	return nil
 }
 
 // UnsavePOI removes a saved POI
 func (r *SavedPOIRepository) UnsavePOI(ctx context.Context, userID, poiID uuid.UUID) error {
 	query := `DELETE FROM saved_pois WHERE user_id = $1 AND poi_id = $2`
 	_, err := r.db.ExecContext(ctx, query, userID, poiID)
-	return err
+	if err != nil {
+		return fmt.Errorf("unsave poi: %w", err)
+	}
+	return nil
 }
 
 // GetSavedPOIs retrieves a user's saved POIs with minimal POI details
@@ -61,7 +68,7 @@ func (r *SavedPOIRepository) GetSavedPOIs(ctx context.Context, userID uuid.UUID,
 	`
 	err := r.db.SelectContext(ctx, &pois, query, userID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get saved pois: %w", err)
 	}
 	return pois, nil
 }
@@ -71,5 +78,8 @@ func (r *SavedPOIRepository) IsSaved(ctx context.Context, userID, poiID uuid.UUI
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM saved_pois WHERE user_id = $1 AND poi_id = $2)`
 	err := r.db.QueryRowContext(ctx, query, userID, poiID).Scan(&exists)
-	return exists, err
+	if err != nil {
+		return false, fmt.Errorf("check is saved: %w", err)
+	}
+	return exists, nil
 }
