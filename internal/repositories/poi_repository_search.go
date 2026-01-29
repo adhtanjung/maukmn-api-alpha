@@ -280,11 +280,11 @@ func (r *POIRepository) GetNearby(ctx context.Context, lat, lng float64, radiusM
 
 	query := `
 		SELECT
-			poi_id, name, category_id, website, brand, description,
+			poi_id, points_of_interest.name, category_id, website, brand, description,
 			address_id, parking_info, amenities, has_wifi, outdoor_seating,
 			is_wheelchair_accessible, has_delivery, cuisine, price_range,
 			food_options, payment_options, kids_friendly, smoker_friendly,
-			pet_friendly, is_verified, verified_at, created_at, updated_at,
+			pet_friendly, is_verified, verified_at, points_of_interest.created_at, points_of_interest.updated_at,
 			cover_image_url, gallery_image_urls, status,
 			(
 			   SELECT COALESCE(json_agg(
