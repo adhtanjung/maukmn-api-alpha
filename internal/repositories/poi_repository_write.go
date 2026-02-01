@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 )
 
@@ -167,6 +168,13 @@ func (r *POIRepository) Create(ctx context.Context, input CreatePOIInput) (*POI,
 		return nil, fmt.Errorf("create poi query: %w", err)
 	}
 
+	// Sync photos to dedicated table
+	if len(input.GalleryImageURLs) > 0 {
+		if err := r.syncPhotos(ctx, tx, poi.PoiID, input.GalleryImageURLs); err != nil {
+			return nil, fmt.Errorf("sync photos: %w", err)
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit tx: %w", err)
 	}
@@ -223,6 +231,12 @@ func (r *POIRepository) Delete(ctx context.Context, poiID uuid.UUID) error {
 
 // UpdateFull updates all fields of a POI
 func (r *POIRepository) UpdateFull(ctx context.Context, poiID uuid.UUID, input UpdateFullInput) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
 	// Convert open_hours map to JSONB
 	var openHoursJSON interface{} = nil
 	if input.OpenHours != nil {
@@ -265,7 +279,7 @@ func (r *POIRepository) UpdateFull(ctx context.Context, poiID uuid.UUID, input U
 		WHERE poi_id = $1
 	`
 
-	_, err := r.db.ExecContext(
+	_, err = tx.ExecContext(
 		ctx,
 		query,
 		poiID,
@@ -319,6 +333,41 @@ func (r *POIRepository) UpdateFull(ctx context.Context, poiID uuid.UUID, input U
 
 	if err != nil {
 		return fmt.Errorf("update full poi: %w", err)
+	}
+
+	// Sync photos to dedicated table
+	if len(input.GalleryImageURLs) > 0 {
+		if err := r.syncPhotos(ctx, tx, poiID, input.GalleryImageURLs); err != nil {
+			return fmt.Errorf("sync photos: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+
+	return nil
+}
+
+// syncPhotos ensures that URLs in the legacy array are present in the photos table.
+func (r *POIRepository) syncPhotos(ctx context.Context, q sqlx.ExtContext, poiID uuid.UUID, urls []string) error {
+	if len(urls) == 0 {
+		return nil
+	}
+
+	query := `
+		INSERT INTO photos (poi_id, url)
+		SELECT $1, $2
+		WHERE NOT EXISTS (
+			SELECT 1 FROM photos WHERE poi_id = $1 AND url = $2
+		)
+	`
+
+	for _, url := range urls {
+		_, err := q.ExecContext(ctx, query, poiID, url)
+		if err != nil {
+			return fmt.Errorf("sync photo %s: %w", url, err)
+		}
 	}
 	return nil
 }
