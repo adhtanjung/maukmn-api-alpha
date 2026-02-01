@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/clerk/clerk-sdk-go/v2/jwt"
@@ -22,7 +23,8 @@ func InitClerk() {
 // VerifyToken verifies the session token and returns the claims
 func VerifyToken(token string) (*clerk.SessionClaims, error) {
 	claims, err := jwt.Verify(context.Background(), &jwt.VerifyParams{
-		Token: token,
+		Token:  token,
+		Leeway: 30 * time.Second,
 	})
 	if err != nil {
 		return nil, err

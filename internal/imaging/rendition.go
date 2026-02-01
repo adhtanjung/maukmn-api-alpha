@@ -33,13 +33,13 @@ const (
 func (q QualityLevel) GetSettings() QualitySettings {
 	switch q {
 	case QualityHigh:
-		return QualitySettings{AVIF: 24, WebP: 85, JPEG: 88}
+		return QualitySettings{AVIF: 25, WebP: 82, JPEG: 85} // Balanced high quality
 	case QualityMedium:
-		return QualitySettings{AVIF: 30, WebP: 78, JPEG: 82}
+		return QualitySettings{AVIF: 30, WebP: 75, JPEG: 80} // Good enough for most uses
 	case QualityLow:
-		return QualitySettings{AVIF: 36, WebP: 70, JPEG: 75}
+		return QualitySettings{AVIF: 40, WebP: 65, JPEG: 70}
 	default:
-		return QualitySettings{AVIF: 30, WebP: 78, JPEG: 82}
+		return QualitySettings{AVIF: 30, WebP: 75, JPEG: 80}
 	}
 }
 
@@ -62,27 +62,27 @@ func GetRenditionsForCategory(category string) []RenditionConfig {
 		}
 	case "cover":
 		return []RenditionConfig{
-			{Name: "cover_320", Width: 320, Height: 180, CropMode: CropCenter16x9, Quality: QualityMedium},
-			{Name: "cover_640", Width: 640, Height: 360, CropMode: CropCenter16x9, Quality: QualityMedium},
-			{Name: "cover_960", Width: 960, Height: 540, CropMode: CropCenter16x9, Quality: QualityMedium},
-			{Name: "cover_1200", Width: 1200, Height: 675, CropMode: CropCenter16x9, Quality: QualityMedium},
-			{Name: "cover_1920", Width: 1920, Height: 1080, CropMode: CropCenter16x9, Quality: QualityMedium},
+			{Name: "cover_320", Width: 320, Height: 180, CropMode: CropCenter16x9, Quality: QualityHigh},
+			{Name: "cover_640", Width: 640, Height: 360, CropMode: CropCenter16x9, Quality: QualityHigh},
+			{Name: "cover_960", Width: 960, Height: 540, CropMode: CropCenter16x9, Quality: QualityHigh},
+			{Name: "cover_1200", Width: 1200, Height: 675, CropMode: CropCenter16x9, Quality: QualityHigh},
+			{Name: "cover_1920", Width: 1920, Height: 1080, CropMode: CropCenter16x9, Quality: QualityHigh},
 		}
 	case "gallery":
 		return []RenditionConfig{
-			{Name: "gallery_thumb", Width: 150, Height: 150, CropMode: CropCenterSquare, Quality: QualityMedium},
-			{Name: "gallery_320", Width: 320, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium},
-			{Name: "gallery_640", Width: 640, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium},
-			{Name: "gallery_960", Width: 960, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium},
-			{Name: "gallery_1200", Width: 1200, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium},
-			{Name: "gallery_1920", Width: 1920, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium},
+			{Name: "gallery_thumb", Width: 150, Height: 150, CropMode: CropCenterSquare, Quality: QualityMedium, SkipAVIF: true},
+			{Name: "gallery_320", Width: 320, Height: 0, CropMode: CropFitWidth, Quality: QualityHigh, SkipAVIF: true},
+			{Name: "gallery_640", Width: 640, Height: 0, CropMode: CropFitWidth, Quality: QualityHigh, SkipAVIF: true},
+			{Name: "gallery_960", Width: 960, Height: 0, CropMode: CropFitWidth, Quality: QualityHigh, SkipAVIF: true},
+			{Name: "gallery_1200", Width: 1200, Height: 0, CropMode: CropFitWidth, Quality: QualityHigh, SkipAVIF: true},
+			{Name: "gallery_1920", Width: 1920, Height: 0, CropMode: CropFitWidth, Quality: QualityHigh, SkipAVIF: true},
 		}
 	default: // general
 		return []RenditionConfig{
-			{Name: "general_320", Width: 320, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium},
-			{Name: "general_640", Width: 640, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium},
-			{Name: "general_960", Width: 960, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium},
-			{Name: "general_1200", Width: 1200, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium},
+			{Name: "general_320", Width: 320, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium, SkipAVIF: true},
+			{Name: "general_640", Width: 640, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium, SkipAVIF: true},
+			{Name: "general_960", Width: 960, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium, SkipAVIF: true},
+			{Name: "general_1200", Width: 1200, Height: 0, CropMode: CropFitWidth, Quality: QualityMedium, SkipAVIF: true},
 		}
 	}
 }

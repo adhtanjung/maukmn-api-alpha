@@ -3,22 +3,25 @@ package imaging
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 )
 
 // ProcessingStatus represents the status of an image processing job
 type ProcessingStatus string
 
 const (
-	StatusPending    ProcessingStatus = "pending"
-	StatusProcessing ProcessingStatus = "processing"
-	StatusReady      ProcessingStatus = "ready"
-	StatusFailed     ProcessingStatus = "failed"
+	StatusPending     ProcessingStatus = "pending"
+	StatusDownloading ProcessingStatus = "downloading"
+	StatusProcessing  ProcessingStatus = "processing"
+	StatusUploading   ProcessingStatus = "uploading"
+	StatusReady       ProcessingStatus = "ready"
+	StatusFailed      ProcessingStatus = "failed"
 )
 
 // ImageAsset represents a processed image asset with all its derivatives
@@ -129,23 +132,31 @@ func NewService(r2Client R2ClientInterface, repo ImagingRepositoryInterface, wor
 }
 
 func (s *Service) resumePendingJobs() {
-	time.Sleep(1 * time.Second) // Small delay for startup stability
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	time.Sleep(1 * time.Second)                                             // Small delay for startup stability
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute) // Increased timeout
 	defer cancel()
 
 	jobs, err := s.repo.GetPendingJobs(ctx)
 	if err != nil {
-		log.Printf("Failed to get pending jobs: %v", err)
+		slog.Error("failed to get pending jobs", "error", err)
 		return
 	}
 
+	slog.Info("found pending jobs", "count", len(jobs))
+
 	for _, job := range jobs {
 		j := job // copy
+		// Blocking send to ensure we don't drop jobs
+		// If queue is full, this will wait until workers consume some
 		select {
 		case s.jobQueue <- &j:
-			log.Printf("Resumed pending job %s", j.ID)
-		default:
-			log.Printf("Job queue full, skipping pending job %s", j.ID)
+			slog.Info("resumed pending job", "job_id", j.ID)
+		case <-s.ctx.Done():
+			// Service shutting down
+			return
+		case <-ctx.Done():
+			slog.Warn("timeout resuming pending jobs")
+			return
 		}
 	}
 }
@@ -168,17 +179,20 @@ func (s *Service) startWorkers() {
 // worker processes jobs from the queue
 func (s *Service) worker(id int) {
 	defer s.wg.Done()
+	l := slog.With("worker_id", id)
 
 	for job := range s.jobQueue {
+		// Priority check for shutdown
 		select {
 		case <-s.ctx.Done():
 			return
 		default:
-			log.Printf("Worker %d processing job %s", id, job.ID)
-			if err := s.processJob(job); err != nil {
-				log.Printf("Worker %d failed to process job %s: %v", id, job.ID, err)
-				s.handleJobFailure(job, err)
-			}
+		}
+
+		l.Info("worker processing job", "job_id", job.ID)
+		if err := s.processJob(job); err != nil {
+			l.Error("failed to process job", "job_id", job.ID, "error", err)
+			s.handleJobFailure(job, err)
 		}
 	}
 }
@@ -212,6 +226,7 @@ func (s *Service) processJob(job *ProcessingJob) error {
 	defer cancel()
 
 	// 1. Download original from R2
+	s.repo.UpdateJob(ctx, job.ID, StatusDownloading, nil, job.Attempts, "")
 	data, err := s.r2Client.GetObject(ctx, job.UploadKey)
 	if err != nil {
 		return fmt.Errorf("failed to download original: %w", err)
@@ -232,7 +247,7 @@ func (s *Service) processJob(job *ProcessingJob) error {
 	}
 
 	if existingAsset != nil && existingAsset.Status == StatusReady {
-		log.Printf("Asset with hash %s already exists, reusing", validation.ContentHash)
+		slog.Debug("asset already exists, reusing", "hash", validation.ContentHash, "asset_id", existingAsset.ID)
 		// Update job to point to existing asset
 		s.repo.UpdateJob(ctx, job.ID, StatusReady, &existingAsset.ID, job.Attempts, "")
 		// Clean up the upload (original is same content)
@@ -263,67 +278,98 @@ func (s *Service) processJob(job *ProcessingJob) error {
 	// Link job to new asset
 	s.repo.UpdateJob(ctx, job.ID, StatusProcessing, &asset.ID, job.Attempts, "")
 
-	// 5. Strip EXIF from original
-	strippedData, err := s.processor.StripEXIF(data)
-	if err != nil {
-		log.Printf("Warning: failed to strip EXIF: %v", err)
-		strippedData = data // Use original if stripping fails
-	}
+	// 5. Generate renditions in parallel
+	slog.Debug("starting parallel processing", "asset_id", asset.ID)
+	s.repo.UpdateAssetStatus(ctx, asset.ID, StatusProcessing, "")
 
-	// 6. Generate renditions
-	processed, err := s.processor.ProcessImage(strippedData, job.Category, validation.HasAlpha)
+	// Pro: Stripping EXIF is now handled efficiently during the export stage in ProcessImage
+	processed, err := s.processor.ProcessImage(ctx, data, job.Category, validation.HasAlpha)
 	if err != nil {
 		s.repo.UpdateAssetStatus(ctx, asset.ID, StatusFailed, err.Error())
 		return fmt.Errorf("processing failed: %w", err)
 	}
 
-	// 7. Upload derivatives to R2
+	// 6. Upload derivatives to R2
+	// 6. Upload derivatives to R2 (Parallel)
+	s.repo.UpdateAssetStatus(ctx, asset.ID, StatusUploading, "")
+
+	// Pre-allocate slice for results to avoid mutex if possible,
+	// but we need to append valid results only. using a mutex for safety.
 	var derivatives []Derivative
+	var mu sync.Mutex
+
+	g, gCtx := errgroup.WithContext(ctx)
+	// Limit upload concurrency to avoid flooding network/R2
+	sem := make(chan struct{}, 10)
+
 	hashPrefix := validation.ContentHash[:2]
 
 	for _, p := range processed {
-		storageKey := fmt.Sprintf("derivatives/%s/%s/v%d/%s.%s",
-			hashPrefix, validation.ContentHash, asset.Version, p.Name, p.Format)
+		p := p // capture loop variable
+		g.Go(func() error {
+			// Acquire semaphore
+			select {
+			case sem <- struct{}{}:
+			case <-gCtx.Done():
+				return gCtx.Err()
+			}
+			defer func() { <-sem }()
 
-		contentType := getContentType(p.Format)
-		if err := s.r2Client.PutObject(ctx, storageKey, p.Data, contentType); err != nil {
-			log.Printf("Warning: failed to upload derivative %s: %v", storageKey, err)
-			continue
-		}
+			storageKey := fmt.Sprintf("derivatives/%s/%s/v%d/%s.%s",
+				hashPrefix, validation.ContentHash, asset.Version, p.Name, p.Format)
 
-		d := Derivative{
-			ID:            uuid.New(),
-			AssetID:       asset.ID,
-			RenditionName: p.Name,
-			Format:        p.Format,
-			Width:         p.Width,
-			Height:        p.Height,
-			SizeBytes:     p.SizeBytes,
-			StorageKey:    storageKey,
-		}
+			contentType := getContentType(p.Format)
 
-		if err := s.repo.CreateDerivative(ctx, d); err != nil {
-			log.Printf("Warning: failed to save derivative record %s: %v", storageKey, err)
-			continue
-		}
-		derivatives = append(derivatives, d)
+			if err := s.r2Client.PutObject(gCtx, storageKey, p.Data, contentType); err != nil {
+				return fmt.Errorf("failed to upload %s: %w", p.Name, err)
+			}
+
+			mu.Lock()
+			derivatives = append(derivatives, Derivative{
+				ID:            uuid.New(),
+				AssetID:       asset.ID,
+				RenditionName: p.Name,
+				Format:        p.Format,
+				StorageKey:    storageKey,
+				Width:         p.Width,
+				Height:        p.Height,
+				SizeBytes:     len(p.Data),
+			})
+			mu.Unlock()
+			return nil
+		})
 	}
 
-	// 8. Move original to permanent location
+	if err := g.Wait(); err != nil {
+		s.repo.UpdateAssetStatus(ctx, asset.ID, StatusFailed, err.Error())
+		return fmt.Errorf("upload failed: %w", err)
+	}
+	// Parallel uploads finished
+
+	// Create derivative records in DB
+	// We do this sequentially to avoid DB contention and because it's fast
+	for _, d := range derivatives {
+		if err := s.repo.CreateDerivative(ctx, d); err != nil {
+			slog.Warn("failed to save derivative record", "key", d.StorageKey, "error", err)
+			continue
+		}
+	}
+
+	// 7. Move original to permanent location
 	originalKey := fmt.Sprintf("originals/%s/%s/original", hashPrefix, validation.ContentHash)
 	if err := s.r2Client.MoveObject(ctx, job.UploadKey, originalKey); err != nil {
-		log.Printf("Warning: failed to move original: %v", err)
+		slog.Warn("failed to move original", "error", err)
 	}
 
-	// 9. Update asset status
+	// 8. Update asset status
 	if err := s.repo.UpdateAssetStatus(ctx, asset.ID, StatusReady, ""); err != nil {
-		log.Printf("Warning: failed to update asset status: %v", err)
+		slog.Warn("failed to update asset status", "asset_id", asset.ID, "error", err)
 	}
 
 	// Mark job as ready
 	s.repo.UpdateJob(ctx, job.ID, StatusReady, &asset.ID, job.Attempts, "")
 
-	log.Printf("Successfully processed asset %s with %d derivatives", asset.ID, len(derivatives))
+	slog.Info("successfully processed asset", "asset_id", asset.ID, "derivatives", len(derivatives))
 	return nil
 }
 
@@ -342,12 +388,12 @@ func (s *Service) handleJobFailure(job *ProcessingJob, err error) {
 			select {
 			case s.jobQueue <- job:
 			default:
-				log.Printf("Failed to requeue job %s", job.ID)
+				slog.Error("failed to requeue job", "job_id", job.ID)
 			}
 		}()
 	} else {
 		// Mark as permanently failed
-		log.Printf("Job %s failed after %d attempts: %s", job.ID, job.Attempts, job.LastError)
+		slog.Error("job permanently failed", "job_id", job.ID, "attempts", job.Attempts, "error", job.LastError)
 		s.repo.UpdateJob(ctx, job.ID, StatusFailed, nil, job.Attempts, job.LastError)
 	}
 }

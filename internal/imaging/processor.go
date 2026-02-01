@@ -1,11 +1,13 @@
 package imaging
 
 import (
+	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"runtime"
 
 	"github.com/davidbyttow/govips/v2/vips"
+	"golang.org/x/sync/errgroup"
 )
 
 // Processor handles image processing operations
@@ -42,77 +44,97 @@ type ProcessedImage struct {
 	SizeBytes int
 }
 
-// ProcessImage generates all renditions for an image
-func (p *Processor) ProcessImage(data []byte, category string, hasAlpha bool) ([]ProcessedImage, error) {
-	// Import image from buffer
-	// govips uses streaming processing where possible
+// ProcessImage generates all renditions for an image in parallel
+func (p *Processor) ProcessImage(ctx context.Context, data []byte, category string, hasAlpha bool) ([]ProcessedImage, error) {
+	// Initialize source to check dimensions
 	srcParams := vips.NewImportParams()
 	srcParams.FailOnError.Set(true)
 
-	srcImage, err := vips.LoadImageFromBuffer(data, srcParams)
+	tmpImage, err := vips.LoadImageFromBuffer(data, srcParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load image: %w", err)
 	}
-	// Important: we can't reuse the same *vips.ImageRef for concurrent operations
-	// or sequential ops that modify it. We must clone or reload.
-	// However, LoadImageFromBuffer creates a new ref.
-	// For multiple renditions, it's efficient to keep one "source" ref open
-	// and copy/clone it for each operation.
-	// Defer closing the source image.
-	defer srcImage.Close()
-
-	srcW := srcImage.Width()
-	srcH := srcImage.Height()
+	srcW := tmpImage.Width()
+	srcH := tmpImage.Height()
+	tmpImage.Close()
 
 	renditions := GetRenditionsForCategory(category)
-	var results []ProcessedImage
+
+	// Use errgroup for parallel processing across available CPU cores
+	g, ctx := errgroup.WithContext(ctx)
+	// Limit concurrency if needed, but errgroup usually handles it via goroutines
+	// libvips has its own internal pools too.
+
+	resultsChan := make(chan []ProcessedImage, len(renditions))
 
 	for _, rendition := range renditions {
+		r := rendition // capture for goroutine
+
 		// Skip if source is smaller than target (avoid upscaling)
-		if rendition.Width > srcW && (rendition.Height == 0 || rendition.Height > srcH) {
+		if r.Width > srcW && (r.Height == 0 || r.Height > srcH) {
 			continue
 		}
 
-		// Process the rendition
-		processed, err := p.processRendition(data, rendition, hasAlpha)
-		if err != nil {
-			log.Printf("Warning: failed to process rendition %s: %v", rendition.Name, err)
-			continue
-		}
-
-		results = append(results, processed...)
+		g.Go(func() error {
+			processed, err := p.processRendition(ctx, data, r, hasAlpha)
+			if err != nil {
+				slog.Error("failed to process rendition", "rendition", r.Name, "error", err)
+				return nil // Don't fail the whole job if one rendition fails
+			}
+			resultsChan <- processed
+			return nil
+		})
 	}
 
-	return results, nil
+	// Wait for all renditions to finish
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	close(resultsChan)
+
+	var allResults []ProcessedImage
+	for res := range resultsChan {
+		allResults = append(allResults, res...)
+	}
+
+	return allResults, nil
 }
 
 // processRendition generates a single rendition in all required formats
-func (p *Processor) processRendition(srcData []byte, config RenditionConfig, hasAlpha bool) ([]ProcessedImage, error) {
-	// Get formats to generate
+func (p *Processor) processRendition(ctx context.Context, srcData []byte, config RenditionConfig, hasAlpha bool) ([]ProcessedImage, error) {
 	formats := GetFormatsForRendition(hasAlpha, config.SkipAVIF)
+
+	// Load the source image ONCE for this rendition
+	baseImg, err := vips.LoadImageFromBuffer(srcData, vips.NewImportParams())
+	if err != nil {
+		return nil, fmt.Errorf("failed to load source: %w", err)
+	}
+	defer baseImg.Close()
+
+	// 1. Apply shared transformations (Resize/Crop) once
+	if err := p.resizeAndCrop(baseImg, config); err != nil {
+		return nil, fmt.Errorf("failed to resize/crop: %w", err)
+	}
+
 	var results []ProcessedImage
 
+	// Sequential processing of formats to avoid exploding concurrency
 	for _, format := range formats {
-		// We must create a fresh pipeline from the source buffer for each format
-		// or copy the vips image ref safely.
-		// For safety and simplicity in this implementation, we reload from buffer.
-		// libvips is very fast at this.
-		img, err := vips.LoadImageFromBuffer(srcData, vips.NewImportParams())
-		if err != nil {
-			return nil, fmt.Errorf("failed to load source for %s: %w", format, err)
+		// Check context before each heavy operation
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
 		}
 
-		// Apply resize/crop
-		if err := p.resizeAndCrop(img, config); err != nil {
-			img.Close()
-			return nil, fmt.Errorf("failed to resize: %w", err)
+		// Clone for this format
+		img, err := baseImg.Copy()
+		if err != nil {
+			return nil, fmt.Errorf("failed to copy image for %s: %w", format, err)
 		}
 
 		var bytes []byte
 		var exportErr error
-
-		// Export based on format
-		// Using standard quality settings
 		q := config.Quality.GetSettings()
 
 		switch format {
@@ -123,7 +145,7 @@ func (p *Processor) processRendition(srcData []byte, config RenditionConfig, has
 			bytes, _, exportErr = img.ExportJpeg(ep)
 		case "png":
 			ep := vips.NewPngExportParams()
-			ep.Compression = 6 // Default best
+			ep.Compression = 6
 			ep.StripMetadata = true
 			bytes, _, exportErr = img.ExportPng(ep)
 		case "webp":
@@ -135,23 +157,21 @@ func (p *Processor) processRendition(srcData []byte, config RenditionConfig, has
 			ep := vips.NewAvifExportParams()
 			ep.Quality = q.AVIF
 			ep.StripMetadata = true
-			ep.Speed = 5 // Balanced speed/size
+			ep.Speed = 8 // Increased speed for faster encoding (range 0-9)
 			bytes, _, exportErr = img.ExportAvif(ep)
 		}
 
-		// Clean up the image ref immediately
-		img.Close()
+		img.Close() // Explicitly close the copy immediately
 
 		if exportErr != nil {
-			log.Printf("Warning: failed to export %s: %v", format, exportErr)
-			continue
+			return nil, exportErr
 		}
 
 		results = append(results, ProcessedImage{
 			Name:      config.Name,
 			Format:    format,
 			Width:     config.Width,
-			Height:    config.Height, // Note: actual height might differ if auto-height
+			Height:    baseImg.Height(), // Use baseImg height as it's already resized
 			Data:      bytes,
 			SizeBytes: len(bytes),
 		})

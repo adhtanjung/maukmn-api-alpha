@@ -58,7 +58,7 @@ func (r *ImagingRepository) UpdateAssetStatus(ctx context.Context, id uuid.UUID,
 // GetAssetByHash retrieves an asset by its content hash
 func (r *ImagingRepository) GetAssetByHash(ctx context.Context, hash string) (*imaging.ImageAsset, error) {
 	var asset imaging.ImageAsset
-	query := `SELECT id, content_hash, original_width, original_height, original_format, original_size, has_alpha, category, status, error_message as error, version, created_by_user_id, created_at, processed_at FROM image_assets WHERE content_hash = $1`
+	query := `SELECT id, content_hash, original_width, original_height, original_format, original_size, has_alpha, category, status, COALESCE(error_message, '') as error, version, created_by_user_id, created_at, processed_at FROM image_assets WHERE content_hash = $1`
 
 	err := r.db.GetContext(ctx, &asset, query, hash)
 	if err == sql.ErrNoRows {
@@ -81,7 +81,7 @@ func (r *ImagingRepository) GetAssetByHash(ctx context.Context, hash string) (*i
 // GetAssetByID retrieves an asset by its ID
 func (r *ImagingRepository) GetAssetByID(ctx context.Context, id uuid.UUID) (*imaging.ImageAsset, error) {
 	var asset imaging.ImageAsset
-	query := `SELECT id, content_hash, original_width, original_height, original_format, original_size, has_alpha, category, status, error_message as error, version, created_by_user_id, created_at, processed_at FROM image_assets WHERE id = $1`
+	query := `SELECT id, content_hash, original_width, original_height, original_format, original_size, has_alpha, category, status, COALESCE(error_message, '') as error, version, created_by_user_id, created_at, processed_at FROM image_assets WHERE id = $1`
 
 	err := r.db.GetContext(ctx, &asset, query, id)
 	if err == sql.ErrNoRows {
@@ -158,7 +158,7 @@ func (r *ImagingRepository) UpdateJob(ctx context.Context, id uuid.UUID, status 
 // GetPendingJobs retrieves all pending jobs
 func (r *ImagingRepository) GetPendingJobs(ctx context.Context) ([]imaging.ProcessingJob, error) {
 	var jobs []imaging.ProcessingJob
-	query := `SELECT id, upload_key, category, user_id, attempts, last_error, created_at FROM image_processing_jobs WHERE status = 'pending' ORDER BY created_at ASC`
+	query := `SELECT id, upload_key, category, user_id, attempts, COALESCE(last_error, '') as last_error, created_at FROM image_processing_jobs WHERE status = 'pending' ORDER BY created_at ASC`
 
 	err := r.db.SelectContext(ctx, &jobs, query)
 	if err != nil {
@@ -170,7 +170,7 @@ func (r *ImagingRepository) GetPendingJobs(ctx context.Context) ([]imaging.Proce
 // GetJobByID retrieves a specific processing job by its ID
 func (r *ImagingRepository) GetJobByID(ctx context.Context, id uuid.UUID) (*imaging.ProcessingJob, error) {
 	var job imaging.ProcessingJob
-	query := `SELECT id, upload_key, category, user_id, asset_id, status, attempts, last_error, created_at FROM image_processing_jobs WHERE id = $1`
+	query := `SELECT id, upload_key, category, user_id, asset_id, status, attempts, COALESCE(last_error, '') as last_error, created_at FROM image_processing_jobs WHERE id = $1`
 
 	err := r.db.GetContext(ctx, &job, query, id)
 	if err == sql.ErrNoRows {

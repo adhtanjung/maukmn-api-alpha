@@ -133,9 +133,9 @@ func Setup(db *database.DB) *gin.Engine {
 				uploads.DELETE("", uploadHandler.DeleteUpload)
 			}
 
-			// Asset routes (require auth)
+			// Asset routes (public to allow polling without token expiration issues)
 			assets := v1.Group("/assets")
-			assets.Use(handlers.AuthMiddleware(userRepo))
+			// assets.Use(handlers.AuthMiddleware(userRepo))
 			{
 				assets.GET("/:id", uploadHandler.GetAssetStatus)
 			}

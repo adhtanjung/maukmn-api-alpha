@@ -144,7 +144,13 @@ func ValidateImage(data []byte, category string) (*ValidationResult, error) {
 	result.Height = img.Height()
 	result.HasAlpha = img.HasAlpha()
 
-	// 4. Check dimensions (decompression bomb protection)
+	// 4. Check dimensions (decompression bomb and tiny image protection)
+	minDimension := 10
+	if result.Width < minDimension || result.Height < minDimension {
+		result.Error = fmt.Sprintf("image dimensions %dx%d are too small (minimum %dpx)", result.Width, result.Height, minDimension)
+		return result, errors.New(result.Error)
+	}
+
 	if result.Width > limits.MaxDimension || result.Height > limits.MaxDimension {
 		result.Error = fmt.Sprintf("image dimensions %dx%d exceed maximum %d", result.Width, result.Height, limits.MaxDimension)
 		return result, errors.New(result.Error)
