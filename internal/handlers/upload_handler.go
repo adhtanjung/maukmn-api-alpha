@@ -56,6 +56,11 @@ type FinalizeRequest struct {
 	CropData  *imaging.CropConfig `json:"crop_data"`
 }
 
+// ReprocessRequest represents the request to reprocess an existing asset
+type ReprocessRequest struct {
+	CropData *imaging.CropConfig `json:"crop_data" binding:"required"`
+}
+
 // FinalizeResponse contains the result of finalizing an upload
 type FinalizeResponse struct {
 	AssetID                    string `json:"asset_id"`
@@ -358,15 +363,38 @@ func (h *UploadHandler) ServeImage(c *gin.Context) {
 	// Check Accept header
 	accept := c.GetHeader("Accept")
 	preferredFormat := ""
-	if strings.Contains(accept, "image/avif") {
-		preferredFormat = "avif"
-	} else if strings.Contains(accept, "image/webp") {
-		preferredFormat = "webp"
+	if rendition != "original" {
+		if strings.Contains(accept, "image/avif") {
+			preferredFormat = "avif"
+		} else if strings.Contains(accept, "image/webp") {
+			preferredFormat = "webp"
+		}
 	}
 
 	key, _, err := h.imagingService.GetDerivativeKey(hash, rendition, preferredFormat)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "image not found"})
+		return
+	}
+
+	// Always proxy for 'original' to avoid CORS issues when fetching for cropping/processing
+	// Or if explicitly requested via query param
+	if rendition == "original" || c.Query("proxy") == "true" {
+		ctx := c.Request.Context()
+		stream, contentType, contentLength, err := h.r2.GetObjectStream(ctx, key)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "image source not found"})
+			return
+		}
+		defer stream.Close()
+
+		// Add cache headers
+		c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		if rendition != "original" {
+			c.Header("Vary", "Accept")
+		}
+
+		c.DataFromReader(http.StatusOK, contentLength, contentType, stream, nil)
 		return
 	}
 
@@ -379,4 +407,67 @@ func (h *UploadHandler) ServeImage(c *gin.Context) {
 
 	// We're redirecting to the actual file
 	c.Redirect(http.StatusFound, publicURL)
+}
+
+// ReprocessAsset triggers reprocessing of an existing asset with new crop data
+func (h *UploadHandler) ReprocessAsset(c *gin.Context) {
+	hash := c.Param("hash")
+
+	var req ReprocessRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.SendValidationError(c, err)
+		return
+	}
+
+	// Get user ID from context
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	userID := userIDVal.(uuid.UUID)
+
+	// 1. Get existing asset to verify ownership/existence
+	asset, exists := h.imagingService.GetAsset(hash)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+		return
+	}
+
+	// Verify ownership?
+	// The asset has CreatedByUserID.
+	if asset.CreatedByUserID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "not authorized to reprocess this asset"})
+		return
+	}
+
+	// 2. Determine original key
+	// We can use GetDerivativeKey logic or construct it manually since we know the pattern
+	// actually GetDerivativeKey gives a derivative key.
+	// We need the original key.
+	// We can construct it: originals/{hash_prefix}/{hash}/original
+	// Or define a method in service to get it.
+	// Ideally service should expose this but for speed I will construct it here or use a helper if available.
+	// Looking at service.go, `originalKey` is constructed as `fmt.Sprintf("originals/%s/%s/original", hashPrefix, contentHash)`
+	hashPrefix := hash[:2]
+	originalKey := fmt.Sprintf("originals/%s/%s/original", hashPrefix, hash)
+
+	// 3. Queue Reprocessing
+	// We use the same Category as the asset
+	jobID, err := h.imagingService.QueueReprocessing(originalKey, asset.Category, userID, req.CropData)
+	if err != nil {
+		utils.SendInternalError(c, err)
+		return
+	}
+
+	// 4. Return success with status URL
+	c.JSON(http.StatusAccepted, gin.H{
+		"success": true,
+		"data": FinalizeResponse{
+			AssetID:                    jobID.String(),
+			Status:                     "processing",
+			EstimatedCompletionSeconds: 5,
+			StatusURL:                  fmt.Sprintf("/api/v1/assets/%s", jobID.String()),
+		},
+	})
 }

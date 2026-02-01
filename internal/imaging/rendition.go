@@ -71,7 +71,7 @@ func GetRenditionsForCategory(category string) []RenditionConfig {
 		}
 	case "gallery":
 		return []RenditionConfig{
-			{Name: "gallery_preview", Width: 640, Height: 360, CropMode: CropCenter16x9, Quality: QualityHigh, UseCustomCrop: true},
+			{Name: "gallery_preview", Width: 360, Height: 640, CropMode: CropCenter16x9, Quality: QualityHigh, UseCustomCrop: true},
 			{Name: "gallery_thumb", Width: 150, Height: 150, CropMode: CropCenterSquare, Quality: QualityMedium, SkipAVIF: true},
 			{Name: "gallery_320", Width: 320, Height: 0, CropMode: CropFitWidth, Quality: QualityHigh, SkipAVIF: true},
 			{Name: "gallery_640", Width: 640, Height: 0, CropMode: CropFitWidth, Quality: QualityHigh, SkipAVIF: true},

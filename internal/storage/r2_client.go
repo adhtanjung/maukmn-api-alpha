@@ -103,6 +103,28 @@ func (r *R2Client) GetObject(ctx context.Context, key string) ([]byte, error) {
 	return data, nil
 }
 
+// GetObjectStream retrieves an object from R2 as a stream
+func (r *R2Client) GetObjectStream(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+	result, err := r.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(r.bucketName),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("failed to get object: %w", err)
+	}
+
+	contentType := ""
+	if result.ContentType != nil {
+		contentType = *result.ContentType
+	}
+	contentLength := int64(0)
+	if result.ContentLength != nil {
+		contentLength = *result.ContentLength
+	}
+
+	return result.Body, contentType, contentLength, nil
+}
+
 // PutObject uploads an object to R2
 func (r *R2Client) PutObject(ctx context.Context, key string, data []byte, contentType string) error {
 	_, err := r.client.PutObject(ctx, &s3.PutObjectInput{

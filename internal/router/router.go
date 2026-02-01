@@ -138,6 +138,7 @@ func Setup(db *database.DB) *gin.Engine {
 			// assets.Use(handlers.AuthMiddleware(userRepo))
 			{
 				assets.GET("/:id", uploadHandler.GetAssetStatus)
+				assets.POST("/:hash/reprocess", handlers.AuthMiddleware(userRepo), uploadHandler.ReprocessAsset)
 			}
 		}
 
