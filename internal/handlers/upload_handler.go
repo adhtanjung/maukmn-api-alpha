@@ -51,8 +51,9 @@ type PresignResponse struct {
 
 // FinalizeRequest represents the request to finalize an upload
 type FinalizeRequest struct {
-	UploadKey string `json:"upload_key" binding:"required"`
-	Category  string `json:"category"`
+	UploadKey string              `json:"upload_key" binding:"required"`
+	Category  string              `json:"category"`
+	CropData  *imaging.CropConfig `json:"crop_data"`
 }
 
 // FinalizeResponse contains the result of finalizing an upload
@@ -218,7 +219,7 @@ func (h *UploadHandler) FinalizeUpload(c *gin.Context) {
 	}
 
 	// Queue for async processing
-	jobID, err := h.imagingService.QueueProcessing(req.UploadKey, category, userID)
+	jobID, err := h.imagingService.QueueProcessing(req.UploadKey, category, userID, req.CropData)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "processing queue is full, try again later"})
 		return

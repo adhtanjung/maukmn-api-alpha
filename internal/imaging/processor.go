@@ -45,7 +45,7 @@ type ProcessedImage struct {
 }
 
 // ProcessImage generates all renditions for an image in parallel
-func (p *Processor) ProcessImage(ctx context.Context, data []byte, category string, hasAlpha bool) ([]ProcessedImage, error) {
+func (p *Processor) ProcessImage(ctx context.Context, data []byte, category string, hasAlpha bool, cropConfig *CropConfig) ([]ProcessedImage, error) {
 	// Initialize source to check dimensions
 	srcParams := vips.NewImportParams()
 	srcParams.FailOnError.Set(true)
@@ -76,7 +76,7 @@ func (p *Processor) ProcessImage(ctx context.Context, data []byte, category stri
 		}
 
 		g.Go(func() error {
-			processed, err := p.processRendition(ctx, data, r, hasAlpha)
+			processed, err := p.processRendition(ctx, data, r, hasAlpha, cropConfig)
 			if err != nil {
 				slog.Error("failed to process rendition", "rendition", r.Name, "error", err)
 				return nil // Don't fail the whole job if one rendition fails
@@ -101,7 +101,7 @@ func (p *Processor) ProcessImage(ctx context.Context, data []byte, category stri
 }
 
 // processRendition generates a single rendition in all required formats
-func (p *Processor) processRendition(ctx context.Context, srcData []byte, config RenditionConfig, hasAlpha bool) ([]ProcessedImage, error) {
+func (p *Processor) processRendition(ctx context.Context, srcData []byte, config RenditionConfig, hasAlpha bool, cropConfig *CropConfig) ([]ProcessedImage, error) {
 	formats := GetFormatsForRendition(hasAlpha, config.SkipAVIF)
 
 	// Load the source image ONCE for this rendition
@@ -112,7 +112,7 @@ func (p *Processor) processRendition(ctx context.Context, srcData []byte, config
 	defer baseImg.Close()
 
 	// 1. Apply shared transformations (Resize/Crop) once
-	if err := p.resizeAndCrop(baseImg, config); err != nil {
+	if err := p.resizeAndCrop(baseImg, config, cropConfig); err != nil {
 		return nil, fmt.Errorf("failed to resize/crop: %w", err)
 	}
 
@@ -181,7 +181,40 @@ func (p *Processor) processRendition(ctx context.Context, srcData []byte, config
 }
 
 // resizeAndCrop applies the specified crop mode and resizing
-func (p *Processor) resizeAndCrop(img *vips.ImageRef, config RenditionConfig) error {
+func (p *Processor) resizeAndCrop(img *vips.ImageRef, config RenditionConfig, cropConfig *CropConfig) error {
+	// Apply custom crop first if enabled and available
+	if config.UseCustomCrop && cropConfig != nil {
+		width := img.Width()
+		height := img.Height()
+
+		// Calculate absolute coordinates
+		left := int(float64(width) * cropConfig.X)
+		top := int(float64(height) * cropConfig.Y)
+		cropWidth := int(float64(width) * cropConfig.Width)
+		cropHeight := int(float64(height) * cropConfig.Height)
+
+		// Validate bounds
+		if left < 0 {
+			left = 0
+		}
+		if top < 0 {
+			top = 0
+		}
+		if left+cropWidth > width {
+			cropWidth = width - left
+		}
+		if top+cropHeight > height {
+			cropHeight = height - top
+		}
+
+		// Perform extraction if dimensions are valid
+		if cropWidth > 0 && cropHeight > 0 {
+			if err := img.ExtractArea(left, top, cropWidth, cropHeight); err != nil {
+				return fmt.Errorf("extract area: %w", err)
+			}
+		}
+	}
+
 	switch config.CropMode {
 	case CropCenterSquare:
 		// Smart thumbnail crop to square

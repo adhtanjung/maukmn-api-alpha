@@ -2,6 +2,8 @@ package imaging
 
 import (
 	"context"
+	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -11,6 +13,28 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
+
+// CropConfig defines the relative crop coordinates (0.0 to 1.0)
+type CropConfig struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+}
+
+// Value implements the driver.Valuer interface
+func (c CropConfig) Value() (driver.Value, error) {
+	return json.Marshal(c)
+}
+
+// Scan implements the sql.Scanner interface
+func (c *CropConfig) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("type assertion to []byte failed")
+	}
+	return json.Unmarshal(b, &c)
+}
 
 // ProcessingStatus represents the status of an image processing job
 type ProcessingStatus string
@@ -57,16 +81,17 @@ type Derivative struct {
 
 // ProcessingJob represents a job in the processing queue
 type ProcessingJob struct {
-	ID          uuid.UUID  `db:"id"`
-	UploadKey   string     `db:"upload_key"`
-	Category    string     `db:"category"`
-	UserID      uuid.UUID  `db:"user_id"`
-	AssetID     *uuid.UUID `db:"asset_id"` // Link to asset once created
-	ContentHash string     `db:"content_hash"`
-	CreatedAt   time.Time  `db:"created_at"`
-	Attempts    int        `db:"attempts"`
-	LastError   string     `db:"last_error"`
-	Status      string     `db:"status"` // Added status to struct
+	ID          uuid.UUID   `db:"id"`
+	UploadKey   string      `db:"upload_key"`
+	Category    string      `db:"category"`
+	UserID      uuid.UUID   `db:"user_id"`
+	AssetID     *uuid.UUID  `db:"asset_id"` // Link to asset once created
+	ContentHash string      `db:"content_hash"`
+	CreatedAt   time.Time   `db:"created_at"`
+	Attempts    int         `db:"attempts"`
+	LastError   string      `db:"last_error"`
+	Status      string      `db:"status"` // Added status to struct
+	CropData    *CropConfig `db:"crop_data"`
 }
 
 // ImagingRepositoryInterface defines the storage operations for image assets
@@ -198,13 +223,14 @@ func (s *Service) worker(id int) {
 }
 
 // QueueProcessing queues an image for processing
-func (s *Service) QueueProcessing(uploadKey, category string, userID uuid.UUID) (uuid.UUID, error) {
+func (s *Service) QueueProcessing(uploadKey, category string, userID uuid.UUID, cropConfig *CropConfig) (uuid.UUID, error) {
 	job := &ProcessingJob{
 		ID:        uuid.New(),
 		UploadKey: uploadKey,
 		Category:  category,
 		UserID:    userID,
 		CreatedAt: time.Now(),
+		CropData:  cropConfig,
 	}
 
 	if err := s.repo.CreateJob(s.ctx, job); err != nil {
@@ -283,7 +309,7 @@ func (s *Service) processJob(job *ProcessingJob) error {
 	s.repo.UpdateAssetStatus(ctx, asset.ID, StatusProcessing, "")
 
 	// Pro: Stripping EXIF is now handled efficiently during the export stage in ProcessImage
-	processed, err := s.processor.ProcessImage(ctx, data, job.Category, validation.HasAlpha)
+	processed, err := s.processor.ProcessImage(ctx, data, job.Category, validation.HasAlpha, job.CropData)
 	if err != nil {
 		s.repo.UpdateAssetStatus(ctx, asset.ID, StatusFailed, err.Error())
 		return fmt.Errorf("processing failed: %w", err)

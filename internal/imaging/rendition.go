@@ -2,12 +2,13 @@ package imaging
 
 // RenditionConfig defines how to generate a specific image rendition
 type RenditionConfig struct {
-	Name     string
-	Width    int
-	Height   int // 0 means maintain aspect ratio
-	CropMode CropMode
-	Quality  QualityLevel
-	SkipAVIF bool // Skip AVIF for very small images
+	Name          string
+	Width         int
+	Height        int // 0 means maintain aspect ratio
+	CropMode      CropMode
+	Quality       QualityLevel
+	SkipAVIF      bool // Skip AVIF for very small images
+	UseCustomCrop bool // If true, uses crop_data from job if available
 }
 
 // CropMode defines how images should be cropped
@@ -70,6 +71,7 @@ func GetRenditionsForCategory(category string) []RenditionConfig {
 		}
 	case "gallery":
 		return []RenditionConfig{
+			{Name: "gallery_preview", Width: 640, Height: 360, CropMode: CropCenter16x9, Quality: QualityHigh, UseCustomCrop: true},
 			{Name: "gallery_thumb", Width: 150, Height: 150, CropMode: CropCenterSquare, Quality: QualityMedium, SkipAVIF: true},
 			{Name: "gallery_320", Width: 320, Height: 0, CropMode: CropFitWidth, Quality: QualityHigh, SkipAVIF: true},
 			{Name: "gallery_640", Width: 640, Height: 0, CropMode: CropFitWidth, Quality: QualityHigh, SkipAVIF: true},
