@@ -500,7 +500,12 @@ func (s *Service) GetAsset(contentHash string) (*ImageAsset, bool) {
 // GetAssetByID retrieves an asset by ID
 func (s *Service) GetAssetByID(id uuid.UUID) (*ImageAsset, bool) {
 	asset, err := s.repo.GetAssetByID(context.Background(), id)
-	if err != nil || asset == nil {
+	if err != nil {
+		slog.Error("GetAssetByID failed", "id", id, "error", err)
+		return nil, false
+	}
+	if asset == nil {
+		slog.Debug("GetAssetByID: asset not found", "id", id)
 		return nil, false
 	}
 	return asset, true
@@ -509,7 +514,12 @@ func (s *Service) GetAssetByID(id uuid.UUID) (*ImageAsset, bool) {
 // GetJobByID retrieves a specific processing job by its ID
 func (s *Service) GetJobByID(id uuid.UUID) (*ProcessingJob, bool) {
 	job, err := s.repo.GetJobByID(context.Background(), id)
-	if err != nil || job == nil {
+	if err != nil {
+		slog.Error("GetJobByID failed", "id", id, "error", err)
+		return nil, false
+	}
+	if job == nil {
+		slog.Debug("GetJobByID: job not found", "id", id)
 		return nil, false
 	}
 	return job, true

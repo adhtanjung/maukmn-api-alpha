@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -250,18 +251,23 @@ func (h *UploadHandler) GetAssetStatus(c *gin.Context) {
 		return
 	}
 
+	slog.Info("GetAssetStatus called", "id", id)
+
 	var asset *imaging.ImageAsset
 	var job *imaging.ProcessingJob
 	var exists bool
 
 	// 1. Try to find asset by ID
 	asset, exists = h.imagingService.GetAssetByID(id)
+	slog.Debug("GetAssetStatus: asset lookup result", "id", id, "found_as_asset", exists)
 
 	// 2. If not found, try to find job by ID
 	if !exists {
 		job, exists = h.imagingService.GetJobByID(id)
+		slog.Debug("GetAssetStatus: job lookup result", "id", id, "found_as_job", exists)
 		if exists && job.AssetID != nil {
 			// Job finished, check the linked asset
+			slog.Debug("GetAssetStatus: job has linked asset", "job_id", id, "asset_id", *job.AssetID)
 			asset, exists = h.imagingService.GetAssetByID(*job.AssetID)
 		}
 	}
@@ -269,6 +275,7 @@ func (h *UploadHandler) GetAssetStatus(c *gin.Context) {
 	if !exists {
 		if job != nil {
 			// Job exists but no asset yet (pending or failed)
+			slog.Info("GetAssetStatus: returning job status (no asset yet)", "job_id", job.ID, "status", job.Status)
 			utils.SendSuccess(c, "Job status retrieved", AssetStatusResponse{
 				AssetID:   job.ID.String(),
 				Status:    job.Status,
@@ -277,7 +284,8 @@ func (h *UploadHandler) GetAssetStatus(c *gin.Context) {
 			})
 			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+		slog.Warn("GetAssetStatus: neither asset nor job found", "id", id)
+		c.JSON(http.StatusNotFound, gin.H{"error": "asset not found", "lookup_id": id.String()})
 		return
 	}
 
